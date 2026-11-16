@@ -7,6 +7,7 @@ import { rotasSaude } from './modulos/saude/saude.rotas.js';
 import { rotasAuth } from './modulos/auth/auth.rotas.js';
 import { rotasCaixa } from './modulos/caixa/caixa.rotas.js';
 import { rotasWebhooks } from './modulos/webhooks/webhook.rotas.js';
+import { rotasPlataforma } from './modulos/plataforma/plataforma.rotas.js';
 
 export function criarApp() {
   const app = express();
@@ -21,9 +22,10 @@ export function criarApp() {
 
   app.use(rotasSaude);
   app.use('/v1/auth', rotasAuth);
+  app.use('/v1/plataforma', rotasPlataforma);
   app.use('/v1/caixa', rotasCaixa);
   app.use('/v1/webhooks', rotasWebhooks);
-  // A IMPLEMENTAR: /v1/plataforma, /v1/admin, /v1/estoque, /v1/me,
+  // A IMPLEMENTAR: /v1/admin, /v1/estoque, /v1/me,
   // /v1/termos, /v1/mercadopago/oauth/callback (ver docs/etapa4-backend.md)
 
   app.use(rotaNaoEncontrada);

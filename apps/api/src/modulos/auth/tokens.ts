@@ -121,9 +121,13 @@ async function carregarSujeitoAtivo(
   sessao: { usuario_id: number | null; responsavel_id: number | null },
 ): Promise<Sujeito | null> {
   if (sessao.usuario_id !== null) {
-    const u = await conn('usuarios_lanchei')
-      .where({ id: sessao.usuario_id, ativo: true })
-      .first<{ id: number; papel: Papel; escola_id: number | null } | undefined>('id', 'papel', 'escola_id');
+    // Escola desativada pela plataforma = equipe dela sem acesso, também no refresh
+    // (senão quem já estava logado seguiria renovando a sessão por 30 dias).
+    const u = await conn('usuarios_lanchei as u')
+      .leftJoin('escolas_lanchei as e', 'e.id', 'u.escola_id')
+      .where({ 'u.id': sessao.usuario_id, 'u.ativo': true })
+      .andWhere((q) => q.whereNull('u.escola_id').orWhere('e.ativo', true))
+      .first<{ id: number; papel: Papel; escola_id: number | null } | undefined>('u.id', 'u.papel', 'u.escola_id');
     return u ? { tipo: 'USUARIO', id: u.id, papel: u.papel, escolaId: u.escola_id } : null;
   }
   const r = await conn('responsaveis_lanchei')

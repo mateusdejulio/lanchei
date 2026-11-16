@@ -31,6 +31,34 @@ const esquema = z.object({
 
   // Origens liberadas no CORS (painel web), separadas por vírgula.
   CORS_ORIGENS: z.string().default('http://localhost:5173'),
+
+  // ---- E-mail (SMTP) ----
+  // Sem SMTP_HOST: em dev o e-mail aparece no terminal; nos testes fica em memória.
+  // Em produção é obrigatório (ver a checagem no fim do esquema).
+  SMTP_HOST: opcional(z.string()),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  // "true" = TLS desde o início (porta 465). "false" = STARTTLS (porta 587).
+  // (z.coerce.boolean() não serve: ele transforma a string "false" em true.)
+  SMTP_SEGURO: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  SMTP_USUARIO: opcional(z.string()),
+  SMTP_SENHA: opcional(z.string()),
+  // Remetente, ex.: "Lanchei <nao-responda@exemplo.com>"
+  EMAIL_REMETENTE: z.string().default('Lanchei <nao-responda@lanchei.local>'),
+
+  // ---- Links dos e-mails ----
+  // Em produção, painel e app dos pais saem da própria API (URL_PUBLICA_API e
+  // URL_PUBLICA_API/app). Estas duas só existem para o desenvolvimento, em que
+  // cada front roda no seu servidor do Vite.
+  URL_PAINEL: opcional(z.url()),
+  URL_APP_PAIS: opcional(z.url()),
+}).superRefine((e, ctx) => {
+  // Em produção, sem SMTP os convites e redefinições de senha sumiriam em silêncio.
+  if (e.NODE_ENV === 'production' && !e.SMTP_HOST) {
+    ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'obrigatório em produção' });
+  }
+  if (e.NODE_ENV === 'production' && !e.URL_PUBLICA_API) {
+    ctx.addIssue({ code: 'custom', path: ['URL_PUBLICA_API'], message: 'obrigatório em produção (links dos e-mails)' });
+  }
 });
 
 export type Env = z.infer<typeof esquema>;

@@ -6,7 +6,7 @@ Contratos de todas as rotas (método, rota, perfil, request/response, códigos d
 
 ---
 
-## 1. O que já está pronto e testado (78 testes passando)
+## 1. O que já está pronto e testado (106 testes passando)
 
 | Arquivo | O que faz |
 |---|---|
@@ -33,7 +33,11 @@ Contratos de todas as rotas (método, rota, perfil, request/response, códigos d
 | `src/modulos/depositos/pagamento.servico.ts` | Aplica pagamento do MP: crédito **uma vez**, confere valor, trata devolução |
 | `src/modulos/webhooks/*` | `POST /webhooks/mercadopago` (assinatura → grava → 200 → processa) |
 | `src/modulos/saude/*`, `src/jobs/keepAlive.ts` | `/health`, `/health/db` e keep-alive de 10 min |
-| `tests/*` | Domínio puro, compra (incl. concorrência), depósitos/webhook, HTTP/auth |
+| `src/infra/email.ts`, `src/infra/emailModelos.ts`, `src/config/urls.ts` | **(4A)** E-mail: SMTP (nodemailer) em produção, terminal em dev, memória nos testes; envio em segundo plano depois do COMMIT; modelos em PT-BR |
+| `src/modulos/auth/tokensEmail.ts`, `cadastro.servico.ts`, `senha.servico.ts` | **(4A)** Cadastro sem enumeração de e-mail, verificação, reenviar, esqueci/redefinir (uso único, só o link mais recente vale, revoga sessões, auditoria `SENHA_REDEFINIR`) |
+| `src/modulos/plataforma/*` | **(4A)** SUPERADMIN: escolas (criar, listar, editar, desativar derruba as sessões da equipe) e primeiro ADMIN/ESCOLA com convite de 72 h |
+| `src/validacao.ts` | Pedaços de Zod reaproveitados (e-mail normalizado, senha nova, nome, id da URL) |
+| `tests/*` | Domínio puro, compra (incl. concorrência), depósitos/webhook, HTTP/auth, conta (cadastro/senha), plataforma |
 
 Testes de concorrência que provam as garantias (rodando contra MySQL):
 - 20 compras simultâneas de R$ 10 com saldo de R$ 50 → **exatamente 5** aprovadas, saldo 0.
@@ -75,6 +79,18 @@ src/modulos/<modulo>/
 ---
 
 ## 4. O que falta implementar (por módulo)
+
+> **4.1 a 4.3: ✅ prontos (bloco 4A).** O texto abaixo continua como especificação. Detalhes decididos na implementação:
+> - **E-mail em segundo plano** (`enviarEmailEmSegundoPlano`), sempre **depois do COMMIT**: a resposta não espera o SMTP, o tempo de resposta não revela se a conta existe, e falha de SMTP vai para o log (sem o endereço). `aguardarEmailsPendentes()` é usado nos testes e no desligamento (SIGTERM).
+> - **Variáveis novas:** `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_SEGURO` (`true` = porta 465), `SMTP_USUARIO`, `SMTP_SENHA`, `EMAIL_REMETENTE`; `URL_PAINEL` e `URL_APP_PAIS` só para dev (em produção os links usam `URL_PUBLICA_API` e `URL_PUBLICA_API/app`). Em produção, `SMTP_HOST` e `URL_PUBLICA_API` são obrigatórios (a API não sobe sem eles).
+> - **Links:** responsável → `/app/verificar-email`, `/app/redefinir-senha`, `/app/entrar`, `/app/esqueci-senha`; equipe → `/redefinir-senha` (esqueci) e `/definir-senha` (convite de 72 h). Os dois da equipe chamam o mesmo `POST /auth/senha/redefinir`.
+> - **Gerar um token novo invalida os anteriores** do mesmo tipo e da mesma pessoa (só o link mais recente vale). Como a API não tem DELETE em `tokens_email_lanchei`, invalidar = preencher `usado_em`.
+> - **Cadastro repetido** de um e-mail **não verificado** manda um link de verificação novo (em vez do aviso "você já tem conta"). Conta desativada não recebe nada.
+> - **Redefinir a senha pelo link confirma o e-mail** do responsável (abrir o link prova que o e-mail é dele).
+> - **Escola desativada:** além do login, o **refresh** também é recusado, e as sessões abertas da equipe são revogadas na hora (o access token já emitido vale até 15 min).
+> - O SUPERADMIN pode criar **mais de um** ADMIN/ESCOLA por escola (ex.: o único admin da cantina saiu); quem perdeu o convite de 72 h usa "Esqueci minha senha".
+> - Erros novos: `422 TOKEN_INVALIDO` (link inválido, vencido ou já usado) e `409 SLUG_JA_EXISTE`.
+> - Rate limits: cadastro 10/h por IP; esqueci e reenviar 3/h por e-mail; verificar e redefinir 20/15 min por IP.
 
 ### 4.1 Infra de e-mail — `src/infra/email.ts`
 - Interface `enviarEmail({ para, assunto, html, texto })`.
@@ -177,7 +193,7 @@ cp apps/api/.env.example apps/api/.env            # ajuste o MySQL
 cp apps/api/.env.test.example apps/api/.env.test  # banco *_test (é apagado nos testes)
 npm run db:schema -w apps/api                     # cria o banco "lanchei"
 npm run db:superadmin -w apps/api -- --nome "Mateus" --email voce@exemplo.com --senha "senha-forte-aqui"
-npm run api:test                                  # 78 testes
+npm run api:test                                  # 106 testes
 npm run api:dev                                   # http://localhost:3333/health
 ```
 

@@ -174,3 +174,20 @@ export async function divergencias() {
 }
 
 export const novaChave = () => randomUUID();
+
+/** Superadmin com e-mail único (a senha é SENHA). */
+export async function criarSuperadmin() {
+  const email = `super-${sufixo()}@teste.com`;
+  const [id] = await db('usuarios_lanchei').insert({ escola_id: null, papel: 'SUPERADMIN', nome: 'Mateus', email, senha_hash: await senhaHash() });
+  return { id: id!, email };
+}
+
+/** E-mail único para cenários de cadastro. */
+export const emailUnico = (prefixo = 'pessoa') => `${prefixo}-${sufixo()}@teste.com`;
+
+/** Extrai o token de um link de e-mail (…?token=XYZ). */
+export function tokenDoEmail(texto: string): string {
+  const m = /[?&]token=([A-Za-z0-9_-]+)/.exec(texto);
+  if (!m) throw new Error('e-mail sem link com token');
+  return m[1]!;
+}

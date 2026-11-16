@@ -3,6 +3,7 @@ import { criarApp } from './app.js';
 import { db } from './infra/db.js';
 import { logger } from './infra/logger.js';
 import { iniciarKeepAlive } from './jobs/keepAlive.js';
+import { aguardarEmailsPendentes } from './infra/email.js';
 
 const app = criarApp();
 const servidor = app.listen(env.PORT, () => logger.info({ porta: env.PORT }, 'API Lanchei no ar'));
@@ -15,6 +16,8 @@ function desligar(sinal: string) {
   logger.info({ sinal }, 'desligando...');
   pararKeepAlive?.();
   servidor.close(async () => {
+    // Termina os e-mails em andamento (convites, redefinições) antes de sair.
+    await aguardarEmailsPendentes();
     await db.destroy();
     process.exit(0);
   });

@@ -6,10 +6,12 @@
 |---|---|---|
 | Integridade do banco (26 regras) | `database/testar_schema.sh` | O próprio MySQL recusa: saldo negativo, UPDATE/DELETE no ledger, crédito/débito duplicado, idempotency key repetida, 2 carteirinhas vivas, dados cruzados entre escolas, estoque negativo, venda manual sem observação, push sem chaves… |
 | Permissões mínimas | `database/testar_grants.sh` | O usuário `lanchei_api` **não consegue** alterar/apagar ledger e auditoria, apagar alunos/pedidos, nem DROP/ALTER; toda tabela tem GRANT |
-| API com usuário restrito | (procedimento abaixo, §1.1) | Os **78 testes passam** logados como `lanchei_api`: a API funciona sem nenhum privilégio a mais |
+| API com usuário restrito | (procedimento abaixo, §1.1) | Os **106 testes passam** logados como `lanchei_api`: a API funciona sem nenhum privilégio a mais |
 | Regras puras | `apps/api/tests/dominio.test.ts` (18) | Ordem das validações, limites, dias (bitmask), fuso da escola, aplicador de schema, assinatura do webhook |
 | Compra | `tests/compra.test.ts` (30) | Aprovação, cada motivo de recusa, idempotência, **concorrência** (saldo, estoque, clique duplo, estorno), PIN, estorno |
 | Depósito/Pix | `tests/deposito.test.ts` (13) | Crédito só com `approved`, **uma vez** mesmo com 10 webhooks em paralelo, valor divergente, devolução, assinatura, reprocessamento |
+| Conta | `tests/conta.test.ts` (18) | Cadastro **sem enumeração de e-mail**, verificação e redefinição (uso único, expiração, só o link mais recente, clique duplo, revoga sessões, auditoria) |
+| Plataforma | `tests/plataforma.test.ts` (10) | Escolas (slug, fuso, desativar derruba a equipe), primeiro ADMIN/ESCOLA com convite de 72 h, permissões (só SUPERADMIN) |
 | HTTP/Auth | `tests/http.test.ts` (17) | Login, refresh rotativo com **detecção de reuso**, permissões por papel (incl. ESCOLA ≠ caixa), formato de erro, caixa sem saldo na resposta |
 
 Prova de que os testes pegam bugs de verdade: removendo o `FOR UPDATE` da conta, o teste "20 compras simultâneas com saldo para 5" falha (aprova as 20).

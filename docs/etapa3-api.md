@@ -38,8 +38,8 @@ API REST em Node + Express + TypeScript, hospedada no Render. Banco MySQL no Aiv
 | 401 | Sem token, token expirado ou inválido | `NAO_AUTENTICADO`, `TOKEN_EXPIRADO` |
 | 403 | Logado, mas o papel não permite | `SEM_PERMISSAO` |
 | 404 | Não existe ou não é seu | `NAO_ENCONTRADO`, `CARTEIRINHA_INVALIDA` |
-| 409 | Conflito de estado | `ESTOQUE_INSUFICIENTE`, `EMAIL_JA_CADASTRADO`, `JA_ESTORNADO`, `MP_NAO_CONECTADO` |
-| 422 | Regra de negócio recusou | `COMPRA_RECUSADA` (+ `detalhes.motivo`), `CODIGO_INVALIDO`, `PIN_INCORRETO`, `VALOR_FORA_DO_LIMITE`, `SALDO_PENDENTE` |
+| 409 | Conflito de estado | `ESTOQUE_INSUFICIENTE`, `EMAIL_JA_CADASTRADO`, `SLUG_JA_EXISTE`, `JA_ESTORNADO`, `MP_NAO_CONECTADO` |
+| 422 | Regra de negócio recusou | `COMPRA_RECUSADA` (+ `detalhes.motivo`), `CODIGO_INVALIDO`, `TOKEN_INVALIDO` (link de e-mail inválido/vencido/usado), `PIN_INCORRETO`, `VALOR_FORA_DO_LIMITE`, `SALDO_PENDENTE` |
 | 423 | Bloqueado temporariamente | `PIN_BLOQUEADO`, `CONTA_TEMPORARIAMENTE_BLOQUEADA` |
 | 429 | Muitas tentativas | `MUITAS_TENTATIVAS` |
 
@@ -101,10 +101,10 @@ Rate limit: login com **5 tentativas por 15 min** por e-mail + IP; esqueci-senha
 
 | Método | Rota | Body / Query | Descrição |
 |---|---|---|---|
-| GET | `/plataforma/escolas` | | Lista escolas |
-| POST | `/plataforma/escolas` | `{ nome, slug, timezone? }` | Cria escola |
-| PATCH | `/plataforma/escolas/:escolaId` | `{ nome?, ativo? }` | Edita ou desativa escola |
-| POST | `/plataforma/escolas/:escolaId/usuarios` | `{ nome, email, papel: "ADMIN" \| "ESCOLA" }` | Cria o primeiro usuário da Cantina ou da Diretoria e envia e-mail para definir a senha |
+| GET | `/plataforma/escolas` | | `{ itens: [{ id, nome, slug, timezone, depositoMinCentavos, depositoMaxCentavos, ativo, criadoEm, equipe: { admin, escola } }] }` (`equipe` = usuários ativos de cada perfil) |
+| POST | `/plataforma/escolas` | `{ nome, slug, timezone? }` | `201 { escola }`. Slug: minúsculas, números e hífen. Repetido: `409 SLUG_JA_EXISTE` |
+| PATCH | `/plataforma/escolas/:escolaId` | `{ nome?, ativo? }` | `{ escola }`. Desativar revoga as sessões da equipe da escola |
+| POST | `/plataforma/escolas/:escolaId/usuarios` | `{ nome, email, papel: "ADMIN" \| "ESCOLA" }` | `201 { usuario: { id, nome, email, papel, ativo } }`. Cria o usuário da Cantina ou da Diretoria e envia o convite para definir a senha (72 h) |
 
 ### 2.4 Administração (`/v1/admin`): Cantina (`ADMIN`) e Diretoria (`ESCOLA`)
 
