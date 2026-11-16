@@ -1,0 +1,14 @@
+# Quebras de linha sempre LF no repositório e no checkout, em qualquer sistema.
+# Motivo: no Windows o Git converte para CRLF por padrão (core.autocrlf=true),
+# e scripts .sh com CRLF quebram no Bash ("$'\r': command not found").
+# Também mantém o projeto igual ao que o CI (Linux) e o Render enxergam.
+* text=auto eol=lf
+
+# Binários: nunca converter.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
