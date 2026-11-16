@@ -6,7 +6,7 @@ Contratos de todas as rotas (método, rota, perfil, request/response, códigos d
 
 ---
 
-## 1. O que já está pronto e testado (106 testes passando)
+## 1. O que já está pronto e testado (299 testes passando)
 
 | Arquivo | O que faz |
 |---|---|
@@ -37,7 +37,10 @@ Contratos de todas as rotas (método, rota, perfil, request/response, códigos d
 | `src/modulos/auth/tokensEmail.ts`, `cadastro.servico.ts`, `senha.servico.ts` | **(4A)** Cadastro sem enumeração de e-mail, verificação, reenviar, esqueci/redefinir (uso único, só o link mais recente vale, revoga sessões, auditoria `SENHA_REDEFINIR`) |
 | `src/modulos/plataforma/*` | **(4A)** SUPERADMIN: escolas (criar, listar, editar, desativar derruba as sessões da equipe) e primeiro ADMIN/ESCOLA com convite de 72 h |
 | `src/validacao.ts` | Pedaços de Zod reaproveitados (e-mail normalizado, senha nova, nome, id da URL) |
-| `tests/*` | Domínio puro, compra (incl. concorrência), depósitos/webhook, HTTP/auth, conta (cadastro/senha), plataforma |
+| `src/modulos/admin/*` (parte da Diretoria) | **(4B)** Turmas (+ virada de ano), alunos (cadastro, lista com pendências, ficha por papel, edição, solicitar encerramento), foto, importação CSV, convites e desvínculo, carteirinhas (individual, lote, desbloqueio), histórico + CSV com auditoria, dados da escola (permissão por campo) e **equipe dos dois perfis** |
+| `src/dominio/codigoAtivacao.ts`, `csv.ts`, `importacaoAlunos.ts` | **(4B)** Funções puras: código de 8 caracteres, CSV para Excel pt-BR (com proteção contra CSV injection), validação da planilha |
+| `src/infra/fotos.ts`, `src/middlewares/upload.ts`, `src/paginacao.ts` | **(4B)** sharp (400×400, sem EXIF), multer em memória, paginação por cursor |
+| `tests/*` | Domínio puro, compra (incl. concorrência), depósitos/webhook, HTTP/auth, conta (cadastro/senha), plataforma, Diretoria, **matriz de permissões** |
 
 Testes de concorrência que provam as garantias (rodando contra MySQL):
 - 20 compras simultâneas de R$ 10 com saldo de R$ 50 → **exatamente 5** aprovadas, saldo 0.
@@ -110,6 +113,20 @@ src/modulos/<modulo>/
 - CRUD de escolas e `POST /escolas/:id/usuarios` com `papel: 'ADMIN' | 'ESCOLA'` (primeiro usuário da Cantina e da Diretoria): cria o usuário com `senha_hash` de um valor aleatório e envia um token `REDEFINIR_SENHA` com **72 h** de validade como "defina sua senha".
 
 ### 4.4 Admin: `/v1/admin` (papéis por rota conforme a matriz da `etapa6-painel.md` §2: Cantina = `ADMIN`, Diretoria = `ESCOLA`)
+
+> **Bloco 4B (Diretoria) ✅ pronto.** Falta a parte da Cantina (4C): Mercado Pago, catálogo, pedidos/estorno, venda manual, relatórios, resumo, auditoria, encerramento com reembolso e ajuste. Decisões tomadas na implementação:
+> - **Equipe (`/admin/usuarios`) já feita para os dois perfis:** ADMIN gerencia ADMIN/OPERADOR, ESCOLA gerencia ESCOLA; usuário de outro perfil = 404 para quem pergunta. Ninguém desativa a si mesmo nem muda o próprio papel (`NAO_PODE_DESATIVAR_A_SI_MESMO`, `NAO_PODE_MUDAR_PROPRIO_PAPEL`). Desativar **ou mudar o papel** revoga as sessões (o papel antigo está dentro do token).
+> - **`PATCH /admin/escola` com permissão por campo:** ESCOLA → `nome`, `timezone`; ADMIN → `depositoMinCentavos`, `depositoMaxCentavos` (R$ 1 a R$ 5.000). Campo de outro perfil → 403. Mínimo > máximo → `422 DEPOSITO_MIN_MAIOR_QUE_MAX`. O GET mostra `mercadoPagoConectado`.
+> - **Ficha do aluno por papel (menor privilégio):** a Cantina vê dados, saldo e carteirinha; responsáveis (com e-mail), convites, regras e bloqueios só a Diretoria.
+> - `GET /admin/turmas` liberado também para a Cantina (filtro da busca de alunos). Desativar turma com alunos → `422 TURMA_COM_ALUNOS` (mova antes).
+> - **Convites:** convidar de novo o mesmo e-mail revoga o código pendente anterior; e-mail já vinculado → `409 RESPONSAVEL_JA_VINCULADO`; convite usado → `409 CONVITE_JA_USADO`. **`enviado_em` só é gravado quando o e-mail sai** (uma falha de SMTP, como o limite diário do plano gratuito, vira a pendência `CONVITE_NAO_ENVIADO`; a solução é "Reenviar", que gera código novo, porque o banco só tem o hash). SMTP com **pool** (2 conexões) para a importação não abrir centenas de conexões.
+> - **Desvincular** avisa o responsável **por e-mail** (desvinculado, ele não vê mais o aluno no app, e não existe tipo de notificação para isso).
+> - **Carteirinha em lote** só para alunos ATIVOS **sem** carteirinha viva (quem já tem não é afetado; trocar = emissão individual, que revoga a anterior na mesma transação e avisa os pais). A emissão trava a linha do aluno: emissões simultâneas fazem fila (teste com 5 em paralelo → 1 viva).
+> - **Histórico (`/extrato`):** junta o ledger **e as compras recusadas** (tipo `RECUSADA`, com `motivoRecusa` e os itens; não mexem no saldo), mais novo primeiro, cursor `(data, origem, id)`. Auditoria `HISTORICO_VISUALIZAR` **só na abertura** (as páginas seguintes da rolagem não repetem). Filtros `de`/`ate` (AAAA-MM-DD no fuso da escola) e `tipo`. CSV: até 10.000 linhas, colunas `data_hora;tipo;descricao;valor_reais;saldo_apos_reais;motivo_recusa`, nome do arquivo com a matrícula (sem o nome do aluno).
+> - **Importação:** exige UTF-8 (`422 ARQUIVO_NAO_UTF8` explicando como salvar no Excel); aceita BOM e os cabeçalhos `email_resp_1/2` além de `email_responsavel_1/2`; até 2.000 linhas; turma comparada sem diferenciar maiúsculas; turma desativada = erro na linha. Gravação **em lote** (500 por INSERT) numa transação só. Com erro: `422 IMPORTACAO_COM_ERROS` e o relatório em `detalhes`.
+> - **Foto:** `sharp` com `.rotate()` (aplica a orientação antes de descartar o EXIF), recorte 400×400 com `position: attention`, JPEG 80 (mozjpeg), `limitInputPixels` de 60 MP contra "bomba de descompressão". Upsert via `INSERT ... ON DUPLICATE KEY UPDATE` (a API não tem DELETE). Arquivo que não é imagem → `422 IMAGEM_INVALIDA`.
+> - **Pendências** (`GET /admin/pendencias`): `alunosAtivos, semCarteirinha, semFoto, semResponsavel, convitesVencidos, convitesNaoEnviados`; os mesmos nomes (em maiúsculas) servem de filtro `?pendencia=` em `GET /admin/alunos`.
+> - Lista de alunos ordenada por nome, com `?busca=` (parte do nome ou matrícula exata; `%` e `_` são tratados como texto).
 - **Escola:** GET/PATCH (fuso validado com Luxon; mínimo ≤ máximo de depósito).
 - **Mercado Pago OAuth:**
   - `POST /admin/mercadopago/conectar` devolve a URL de autorização do MP, com `state` = JWT curto (10 min) contendo `escolaId` e `usuarioId`.
@@ -193,7 +210,7 @@ cp apps/api/.env.example apps/api/.env            # ajuste o MySQL
 cp apps/api/.env.test.example apps/api/.env.test  # banco *_test (é apagado nos testes)
 npm run db:schema -w apps/api                     # cria o banco "lanchei"
 npm run db:superadmin -w apps/api -- --nome "Mateus" --email voce@exemplo.com --senha "senha-forte-aqui"
-npm run api:test                                  # 106 testes
+npm run api:test                                  # 299 testes
 npm run api:dev                                   # http://localhost:3333/health
 ```
 

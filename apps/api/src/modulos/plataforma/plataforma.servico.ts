@@ -5,13 +5,8 @@
 // (diretoria); a partir daí cada perfil cadastra a própria equipe.
 import { IANAZone } from 'luxon';
 import { db, ehChaveDuplicada } from '../../infra/db.js';
-import { hashSenha, tokenAleatorio } from '../../infra/cripto.js';
-import { enviarEmailEmSegundoPlano } from '../../infra/email.js';
-import { modelos } from '../../infra/emailModelos.js';
-import { link, urlPainel } from '../../config/urls.js';
 import { registrarAuditoria } from '../../dominio/auditoria.js';
 import { erros } from '../../erros.js';
-import { criarTokenEmail, VALIDADE } from '../auth/tokensEmail.js';
 import type { InfoCliente } from '../auth/tokens.js';
 
 export const fusoValido = (tz: string) => IANAZone.isValidZone(tz);
@@ -127,65 +122,5 @@ export async function editarEscola(escolaId: number, d: { nome?: string | undefi
   return buscarEscola(escolaId);
 }
 
-/**
- * Cria um usuário ADMIN (cantina) ou ESCOLA (diretoria) e manda o convite
- * "crie sua senha" (token REDEFINIR_SENHA de 72 h).
- *
- * A senha inicial é um valor aleatório que ninguém conhece: a conta só passa
- * a ter uma senha utilizável quando a pessoa abre o link do e-mail.
- */
-export async function criarUsuarioDaEscola(
-  escolaId: number,
-  d: { nome: string; email: string; papel: 'ADMIN' | 'ESCOLA' },
-  ator: Ator,
-) {
-  const senhaInutilizavel = await hashSenha(tokenAleatorio(32));
-
-  let resultado: { usuarioId: number; token: string; escolaNome: string };
-  try {
-    resultado = await db.transaction(async (trx) => {
-      const escola = await trx('escolas_lanchei').where({ id: escolaId }).first<{ nome: string } | undefined>('nome');
-      if (!escola) throw erros.naoEncontrado('Escola não encontrada.');
-
-      const [usuarioId] = await trx('usuarios_lanchei').insert({
-        escola_id: escolaId,
-        papel: d.papel,
-        nome: d.nome,
-        email: d.email,
-        senha_hash: senhaInutilizavel,
-      });
-      const token = await criarTokenEmail(trx, { tipo: 'USUARIO', id: usuarioId! }, 'REDEFINIR_SENHA', VALIDADE.CONVITE_EQUIPE);
-      await registrarAuditoria(trx, {
-        escolaId,
-        ator: { tipo: 'USUARIO', id: ator.id },
-        acao: 'USUARIO_CRIAR',
-        entidade: 'usuarios',
-        entidadeId: usuarioId!,
-        depois: { papel: d.papel },
-        ip: ator.ip ?? null,
-        userAgent: ator.userAgent ?? null,
-      });
-      return { usuarioId: usuarioId!, token, escolaNome: escola.nome };
-    });
-  } catch (e) {
-    // Aqui pode dizer que o e-mail existe: a rota é só do superadmin, não é pública.
-    if (ehChaveDuplicada(e)) throw erros.conflito('EMAIL_JA_CADASTRADO', 'Já existe um usuário da equipe com este e-mail.');
-    throw e;
-  }
-
-  // Depois do COMMIT: se a transação tivesse falhado, o convite não sairia.
-  enviarEmailEmSegundoPlano(
-    {
-      para: d.email,
-      ...modelos.conviteEquipe({
-        nome: d.nome,
-        papel: d.papel,
-        escola: resultado.escolaNome,
-        link: link(urlPainel, '/definir-senha', { token: resultado.token }),
-      }),
-    },
-    'convite-equipe',
-  );
-
-  return { id: resultado.usuarioId, nome: d.nome, email: d.email, papel: d.papel, ativo: true };
-}
+// O primeiro ADMIN/ESCOLA usa a mesma função da equipe (convite "crie sua senha" de 72 h).
+export { criarUsuarioDaEscola } from '../admin/equipe.servico.js';

@@ -26,6 +26,11 @@ export interface Email {
 let smtp: Transporter | undefined;
 function transporteSmtp(): Transporter {
   smtp ??= nodemailer.createTransport({
+    // pool: reaproveita poucas conexões e enfileira as mensagens. Sem isso,
+    // importar 500 alunos abriria centenas de conexões SMTP ao mesmo tempo
+    // (e o provedor bloquearia).
+    pool: true,
+    maxConnections: 2,
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
     secure: env.SMTP_SEGURO,
@@ -66,8 +71,14 @@ export async function enviarEmail(email: Email): Promise<void> {
 // e-mails quando o Render manda SIGTERM no meio de um deploy.
 const pendentes = new Set<Promise<void>>();
 
-export function enviarEmailEmSegundoPlano(email: Email, rotulo: string): void {
+/**
+ * @param aoEnviar roda só se o envio deu certo (ex.: marcar convite como enviado).
+ */
+export function enviarEmailEmSegundoPlano(email: Email, rotulo: string, aoEnviar?: () => Promise<unknown>): void {
   const envio = enviarEmail(email)
+    .then(async () => {
+      await aoEnviar?.();
+    })
     .catch((err: unknown) => {
       // Sem destinatário nem conteúdo no log: só o tipo do e-mail e o código do erro.
       const codigo = (err as { code?: string }).code ?? (err as Error).name;

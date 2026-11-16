@@ -38,8 +38,8 @@ API REST em Node + Express + TypeScript, hospedada no Render. Banco MySQL no Aiv
 | 401 | Sem token, token expirado ou inválido | `NAO_AUTENTICADO`, `TOKEN_EXPIRADO` |
 | 403 | Logado, mas o papel não permite | `SEM_PERMISSAO` |
 | 404 | Não existe ou não é seu | `NAO_ENCONTRADO`, `CARTEIRINHA_INVALIDA` |
-| 409 | Conflito de estado | `ESTOQUE_INSUFICIENTE`, `EMAIL_JA_CADASTRADO`, `SLUG_JA_EXISTE`, `JA_ESTORNADO`, `MP_NAO_CONECTADO` |
-| 422 | Regra de negócio recusou | `COMPRA_RECUSADA` (+ `detalhes.motivo`), `CODIGO_INVALIDO`, `TOKEN_INVALIDO` (link de e-mail inválido/vencido/usado), `PIN_INCORRETO`, `VALOR_FORA_DO_LIMITE`, `SALDO_PENDENTE` |
+| 409 | Conflito de estado | `ESTOQUE_INSUFICIENTE`, `EMAIL_JA_CADASTRADO`, `SLUG_JA_EXISTE`, `MATRICULA_JA_EXISTE`, `TURMA_JA_EXISTE`, `RESPONSAVEL_JA_VINCULADO`, `CONVITE_JA_USADO`, `JA_ESTORNADO`, `MP_NAO_CONECTADO` |
+| 422 | Regra de negócio recusou | `COMPRA_RECUSADA` (+ `detalhes.motivo`), `CODIGO_INVALIDO`, `TOKEN_INVALIDO` (link de e-mail inválido/vencido/usado), `ALUNO_ENCERRADO`, `TURMA_INATIVA`, `TURMA_COM_ALUNOS`, `IMAGEM_INVALIDA`, `ARQUIVO_NAO_UTF8`, `IMPORTACAO_COM_ERROS`, `DEPOSITO_MIN_MAIOR_QUE_MAX`, `PIN_INCORRETO`, `VALOR_FORA_DO_LIMITE`, `SALDO_PENDENTE` |
 | 423 | Bloqueado temporariamente | `PIN_BLOQUEADO`, `CONTA_TEMPORARIAMENTE_BLOQUEADA` |
 | 429 | Muitas tentativas | `MUITAS_TENTATIVAS` |
 
@@ -135,6 +135,7 @@ Rate limit: login com **5 tentativas por 15 min** por e-mail + IP; esqueci-senha
 | GET | `/admin/turmas?anoLetivo=` | |
 | POST | `/admin/turmas` | `{ nome, anoLetivo }` |
 | PATCH | `/admin/turmas/:id` | `{ nome?, ativo? }` |
+| PATCH | `/admin/turmas/mover-alunos` | `{ deTurmaId, paraTurmaId, alunoIds? }` (virada de ano; sem `alunoIds` move todos) |
 
 **Alunos**
 
@@ -142,7 +143,7 @@ Rate limit: login com **5 tentativas por 15 min** por e-mail + IP; esqueci-senha
 |---|---|---|---|
 | GET | `/admin/alunos` | `?busca=&turmaId=&status=&limite=&cursor=` | Lista com `{ id, nome, matricula, turma, status, temFoto, carteirinha: status, saldoCentavos, qtdResponsaveis }` |
 | POST | `/admin/alunos` | `{ nome, matricula, turmaId, emailsResponsaveis: string[] }` | Cria aluno + `regras_aluno` + conta, numa transação. Para cada e-mail, cria um convite e envia o código |
-| POST | `/admin/alunos/importar` | `multipart: arquivo CSV` + `?simular=true` | Importação em massa (`nome;matricula;turma;email_resp_1;email_resp_2`). Com `simular=true`, só valida e devolve o relatório de erros, sem gravar |
+| POST | `/admin/alunos/importar` | `multipart: arquivo CSV` + `?simular=true` | Importação em massa (`nome;matricula;turma;email_responsavel_1;email_responsavel_2`, UTF-8, `;`; `GET /admin/alunos/importar/modelo` baixa o modelo). Com `simular=true`, só valida e devolve o relatório de erros, sem gravar |
 | GET | `/admin/alunos/:id` | | Detalhe: dados, saldo, regras (só leitura), responsáveis vinculados, convites pendentes, carteirinha |
 | PATCH | `/admin/alunos/:id` | `{ nome?, matricula?, turmaId?, status?: "ATIVO" \| "INATIVO" }` | `INATIVO` bloqueia compras temporariamente |
 | PUT | `/admin/alunos/:id/foto` | `multipart: foto` (JPEG/PNG, máx. 5 MB na entrada) | A API redimensiona para 400×400, recomprime em JPEG e **remove metadados (EXIF/GPS)** antes de salvar |
@@ -164,7 +165,7 @@ Rate limit: login com **5 tentativas por 15 min** por e-mail + IP; esqueci-senha
 | Método | Rota | Body | Descrição |
 |---|---|---|---|
 | POST | `/admin/alunos/:id/carteirinhas` | `{ motivo? }` | Emite carteirinha nova. Se já existir uma viva, ela é **revogada** na mesma transação. Resposta: `{ carteirinhaId, qrConteudo }` |
-| POST | `/admin/turmas/:id/carteirinhas` | | Emissão em lote para os alunos da turma **sem** carteirinha viva. Resposta: lista de `{ alunoId, nome, qrConteudo }` para impressão |
+| POST | `/admin/turmas/:id/carteirinhas` | | Emissão em lote para os alunos da turma **sem** carteirinha viva. Resposta: `{ itens: [{ alunoId, nome, matricula, turma, temFoto, carteirinhaId, qrConteudo }] }` para impressão |
 | POST | `/admin/alunos/:id/carteirinha/desbloquear` | | Admin também pode desbloquear (ex.: responsável sem acesso ao app) |
 
 > ⚠️ **O `qrConteudo` só aparece na resposta da emissão.** O banco guarda apenas o hash, então não dá para "reimprimir" a mesma carteirinha depois: reimprimir = emitir uma nova (e a antiga para de funcionar). Isso é intencional: uma impressão vazada não vira acesso permanente. A tela de impressão (Etapa 6) gera o PDF da carteirinha logo após a emissão.
@@ -194,6 +195,10 @@ Rate limit: login com **5 tentativas por 15 min** por e-mail + IP; esqueci-senha
 | GET | `/admin/relatorios/depositos` | `?de=&ate=` | Depósitos aprovados, valor bruto e taxa |
 | GET | `/admin/relatorios/saldos` | | Soma dos saldos em aberto (o que a cantina "deve" em consumo) |
 | GET | `/admin/auditoria` | `?alunoId=&acao=&de=&ate=&cursor=` | Trilha de auditoria |
+| GET | `/admin/pendencias` | | (ESCOLA) Contagens do "o que falta fazer" (etapa6 §5.1) |
+| GET | `/admin/alunos/:id/extrato` | `?de=&ate=&tipo=&limite=&cursor=` | (ADMIN, ESCOLA) Ledger + compras recusadas (`tipo: RECUSADA`). Auditado |
+| GET | `/admin/alunos/:id/extrato.csv` | `?de=&ate=&tipo=` | (ADMIN, ESCOLA) CSV para Excel. Auditado |
+| POST | `/admin/alunos/:id/solicitar-encerramento` | `{ motivo }` | (ESCOLA) E-mail aos ADMIN da cantina + auditoria. `202` |
 
 ### 2.5 Caixa (`/v1/caixa`): OPERADOR e ADMIN
 

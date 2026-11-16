@@ -112,6 +112,33 @@ export const modelos = {
       rodape: 'Se você não é responsável por este aluno, ignore este e-mail e avise a secretaria da escola.',
     }),
 
+  // A escola encerrou o vínculo (ex.: guarda judicial alterada). Avisamos por
+  // e-mail porque, desvinculado, o responsável não vê mais o aluno no app.
+  vinculoEncerrado: (d: { nomeResponsavel: string; primeiroNomeAluno: string; escola: string }) =>
+    montar({
+      assunto: 'Seu vínculo no Lanchei foi encerrado',
+      titulo: `Olá, ${d.nomeResponsavel}.`,
+      paragrafos: [
+        `A escola ${d.escola} encerrou o seu vínculo com ${d.primeiroNomeAluno} no Lanchei. Você não verá mais as compras nem poderá colocar créditos para este aluno.`,
+        'Se acha que isso foi um engano, fale com a secretaria da escola.',
+      ],
+      rodape: 'Este é um aviso automático do Lanchei.',
+    }),
+
+  // Diretoria pede à cantina o encerramento com reembolso (quem devolve o dinheiro é a cantina).
+  solicitacaoEncerramento: (d: { nomeAluno: string; matricula: string; motivo: string; solicitante: string; link: string }) =>
+    montar({
+      assunto: `[Lanchei] Pedido de encerramento: ${d.nomeAluno}`,
+      titulo: 'A diretoria pediu o encerramento de um aluno',
+      paragrafos: [
+        `Aluno: ${d.nomeAluno} (matrícula ${d.matricula}).`,
+        `Motivo informado por ${d.solicitante}: ${d.motivo}`,
+        'Abra a ficha do aluno no painel da cantina e use "Encerrar com reembolso" (se houver saldo, ele precisa ser devolvido).',
+      ],
+      botao: { texto: 'Abrir o painel', url: d.link },
+      rodape: 'Aviso automático do Lanchei para a administração da cantina.',
+    }),
+
   // Usado pelo job de reconciliação (etapa 4D). Sem dados pessoais: só quantidades.
   alertaReconciliacao: (d: { contasDivergentes: number; estoqueDivergente: number }) =>
     montar({

@@ -45,7 +45,8 @@ export async function criarEscola() {
     email: `escola-${s}@teste.com`,
     senha_hash: await senhaHash(),
   });
-  const [turmaId] = await db('turmas_lanchei').insert({ escola_id: escolaId, nome: '3A', ano_letivo: 2026 });
+  // Ano letivo atual (a importação de CSV procura turmas do ano corrente).
+  const [turmaId] = await db('turmas_lanchei').insert({ escola_id: escolaId, nome: '3A', ano_letivo: new Date().getFullYear() });
   const [catBebidas] = await db('categorias_lanchei').insert({ escola_id: escolaId, nome: 'Bebidas' });
   const [catDoces] = await db('categorias_lanchei').insert({ escola_id: escolaId, nome: 'Doces' });
   const [suco] = await db('produtos_lanchei').insert({ escola_id: escolaId, categoria_id: catBebidas, nome: 'Suco', preco_centavos: 600 });
@@ -184,6 +185,25 @@ export async function criarSuperadmin() {
 
 /** E-mail único para cenários de cadastro. */
 export const emailUnico = (prefixo = 'pessoa') => `${prefixo}-${sufixo()}@teste.com`;
+
+/** Faz login da equipe e devolve um "cliente" HTTP com o token (get/post/patch/put). */
+export async function logarEquipe(app: import('express').Express, email: string) {
+  const { default: request } = await import('supertest');
+  const r = await request(app).post('/v1/auth/equipe/login').send({ email, senha: SENHA });
+  if (r.status !== 200) throw new Error(`login falhou (${r.status})`);
+  const token = r.body.accessToken as string;
+  const auth = { Authorization: `Bearer ${token}` };
+  return {
+    token,
+    get: (rota: string) => request(app).get(rota).set(auth),
+    post: (rota: string, body: object = {}) => request(app).post(rota).set(auth).send(body),
+    patch: (rota: string, body: object = {}) => request(app).patch(rota).set(auth).send(body),
+    put: (rota: string) => request(app).put(rota).set(auth),
+    // multipart (upload de foto/CSV)
+    upload: (metodo: 'post' | 'put', rota: string, campo: string, conteudo: Buffer, nomeArquivo: string, tipo: string) =>
+      request(app)[metodo](rota).set(auth).attach(campo, conteudo, { filename: nomeArquivo, contentType: tipo }),
+  };
+}
 
 /** Extrai o token de um link de e-mail (…?token=XYZ). */
 export function tokenDoEmail(texto: string): string {

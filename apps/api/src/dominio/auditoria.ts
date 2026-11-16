@@ -19,6 +19,22 @@ export interface RegistroAuditoria {
   userAgent?: string | null;
 }
 
+/** Usuário da equipe que fez a ação + de onde (para a trilha de auditoria). */
+export interface AtorUsuario {
+  id: number;
+  ip?: string | undefined;
+  userAgent?: string | undefined;
+}
+
+/** Atalho: auditoria de uma ação feita por um usuário da equipe. */
+export function auditarUsuario(
+  db: Db,
+  ator: AtorUsuario,
+  r: Omit<RegistroAuditoria, 'ator' | 'ip' | 'userAgent'>,
+): Promise<void> {
+  return registrarAuditoria(db, { ...r, ator: { tipo: 'USUARIO', id: ator.id }, ip: ator.ip ?? null, userAgent: ator.userAgent ?? null });
+}
+
 export async function registrarAuditoria(db: Db, r: RegistroAuditoria): Promise<void> {
   await db('auditoria_lanchei').insert({
     escola_id: r.escolaId,
