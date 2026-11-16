@@ -1,0 +1,17 @@
+{
+  "name": "lanchei",
+  "private": true,
+  "description": "Lanchei: pagamento sem dinheiro para cantinas escolares",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "api:dev": "npm run dev -w apps/api",
+    "api:test": "npm test -w apps/api",
+    "api:typecheck": "npm run typecheck -w apps/api"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

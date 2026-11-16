@@ -1,0 +1,62 @@
+# Integração contínua (gratuita no GitHub Actions dentro da cota mensal).
+# A cada push e pull request: instala, confere tipos, testa a integridade do
+# schema, as permissões mínimas e roda todos os testes da API contra um
+# MySQL 8 de verdade.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      NODE_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: lanchei_test
+      JWT_SECRET: segredo-de-ci-com-mais-de-32-caracteres-xxxxxxxxxx
+      CHAVE_CRIPTOGRAFIA: "2222222222222222222222222222222222222222222222222222222222222222"
+      MP_WEBHOOK_SECRET: segredo-webhook-ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run api:typecheck
+
+      - name: Integridade do schema (26 regras)
+        working-directory: database
+        run: MYSQL="mysql -h 127.0.0.1 -u root -proot" ./testar_schema.sh
+
+      - name: Permissões mínimas (grants.sql)
+        working-directory: database
+        run: MYSQL="mysql -h 127.0.0.1 -u root -proot" ./testar_grants.sh
+
+      - name: Testes da API
+        run: npm run api:test
