@@ -6,7 +6,7 @@ Contratos de todas as rotas (método, rota, perfil, request/response, códigos d
 
 ---
 
-## 1. O que já está pronto e testado (299 testes passando)
+## 1. O que já está pronto e testado (455 testes passando)
 
 | Arquivo | O que faz |
 |---|---|
@@ -38,6 +38,8 @@ Contratos de todas as rotas (método, rota, perfil, request/response, códigos d
 | `src/modulos/plataforma/*` | **(4A)** SUPERADMIN: escolas (criar, listar, editar, desativar derruba as sessões da equipe) e primeiro ADMIN/ESCOLA com convite de 72 h |
 | `src/validacao.ts` | Pedaços de Zod reaproveitados (e-mail normalizado, senha nova, nome, id da URL) |
 | `src/modulos/admin/*` (parte da Diretoria) | **(4B)** Turmas (+ virada de ano), alunos (cadastro, lista com pendências, ficha por papel, edição, solicitar encerramento), foto, importação CSV, convites e desvínculo, carteirinhas (individual, lote, desbloqueio), histórico + CSV com auditoria, dados da escola (permissão por campo) e **equipe dos dois perfis** |
+| `src/modulos/admin/cantina.rotas.ts` + `catalogo`, `pedidos`, `vendaManual`, `conta`, `relatorios`, `resumo`, `auditoria`, `mercadopago` (`.servico.ts`) | **(4C)** Cantina: catálogo, pedidos e estorno de qualquer data, **venda manual**, **ajuste de saldo**, **encerramento com reembolso**, relatórios (+CSV), resumo do dia com alertas, auditoria por perfil e **OAuth do Mercado Pago** |
+| `src/modulos/estoque/*` | **(4C)** `/v1/estoque` (ADMIN e OPERADOR): lista com alerta de mínimo, entrada/perda/contagem, histórico |
 | `src/dominio/codigoAtivacao.ts`, `csv.ts`, `importacaoAlunos.ts` | **(4B)** Funções puras: código de 8 caracteres, CSV para Excel pt-BR (com proteção contra CSV injection), validação da planilha |
 | `src/infra/fotos.ts`, `src/middlewares/upload.ts`, `src/paginacao.ts` | **(4B)** sharp (400×400, sem EXIF), multer em memória, paginação por cursor |
 | `tests/*` | Domínio puro, compra (incl. concorrência), depósitos/webhook, HTTP/auth, conta (cadastro/senha), plataforma, Diretoria, **matriz de permissões** |
@@ -55,7 +57,7 @@ Testes de concorrência que provam as garantias (rodando contra MySQL):
 ## 2. Regras que NUNCA podem ser quebradas
 
 1. **Saldo só muda por `lancarTransacao`** e **estoque só por `movimentarEstoque`**, dentro de `db.transaction`.
-2. **Ordem de locks em todo o sistema:** `conta` → (`pedido` | `depósito`) → `produtos` em ordem crescente de id. Para travar um pedido/depósito, descubra a `conta_id` sem lock, chame `travarConta` e só então faça `forUpdate()` no pedido/depósito. (Ver `estorno.servico.ts` e `pagamento.servico.ts`.)
+2. **Ordem de locks em todo o sistema:** `conta` → (`pedido` | `depósito`) → `produtos` em ordem crescente de id. Para travar um pedido/depósito, descubra a `conta_id` sem lock, chame `travarConta` e só então faça `forUpdate()` no pedido/depósito. (Ver `estorno.servico.ts` e `pagamento.servico.ts`.) Quando também for preciso travar a **linha do aluno** (encerramento), ela vem **depois da conta**: `conta` → `aluno` → (`pedido` | `depósito`) → `produtos`. As rotas da Diretoria que travam o aluno (carteirinha, foto, edição) nunca travam a conta depois, então não fecham ciclo com a compra.
 3. **`escolaId` vem sempre do token** (`usuarioDaEscola(req)`), nunca de URL/body. Toda query de equipe filtra por `escola_id`.
 4. **Recurso de outra escola ou de outro responsável = 404**, nunca 403.
 5. **O caixa nunca recebe saldo** em nenhuma resposta.
@@ -114,7 +116,18 @@ src/modulos/<modulo>/
 
 ### 4.4 Admin: `/v1/admin` (papéis por rota conforme a matriz da `etapa6-painel.md` §2: Cantina = `ADMIN`, Diretoria = `ESCOLA`)
 
-> **Bloco 4B (Diretoria) ✅ pronto.** Falta a parte da Cantina (4C): Mercado Pago, catálogo, pedidos/estorno, venda manual, relatórios, resumo, auditoria, encerramento com reembolso e ajuste. Decisões tomadas na implementação:
+> **Bloco 4C (Cantina) ✅ pronto.** Decisões tomadas na implementação:
+> - **Venda manual:** mesmos locks e mesma idempotência da compra; valida **só saldo e estoque**. O pedido fica com `created_at = ocorridoEm` (quando a venda aconteceu) e o lançamento no ledger com o instante real em que o saldo mudou. Motivo: assim a venda conta no **limite** e nos **relatórios** do dia em que ocorreu (com "agora", uma venda de segunda lançada na terça consumiria o limite diário da terça). `ocorridoEm` não pode ser futuro nem ter mais de 60 dias. Saldo insuficiente → `422 SALDO_INSUFICIENTE` com `detalhes.faltamCentavos` e **nada gravado**. Aluno INATIVO passa; ENCERRADO não. Produto precisa estar ativo.
+> - **Ajuste de saldo:** ±R$ 5.000 no máximo, descrição obrigatória (5+ caracteres). Como o ledger não tem Idempotency-Key para ajustes, um ajuste **idêntico** (mesmo usuário, conta, valor e descrição) em menos de 1 minuto é recusado com `409 AJUSTE_DUPLICADO` (a checagem roda com a conta travada). Em conta ENCERRADA só se aceita **débito**.
+> - **Encerramento:** trava a conta e depois o aluno; `409 JA_ENCERRADO`; com Pix **em aberto** (PENDENTE não vencido) → `409 DEPOSITO_PENDENTE` (senão o crédito cairia numa conta fechada); saldo > 0 sem `reembolso` → `422 SALDO_PENDENTE` (`detalhes.saldoCentavos`). O saldo **inteiro** sai como REEMBOLSO; a carteirinha viva e os convites pendentes são revogados; os responsáveis vinculados são avisados **por e-mail** (os vínculos continuam, para verem o extrato). Se um Pix pago no último segundo for creditado depois do encerramento, o resumo mostra o alerta `ENCERRADO_COM_SALDO` e a cantina zera com um ajuste negativo depois de devolver o valor. **Pendência para a 4D:** a criação de depósito precisa recusar aluno ENCERRADO.
+> - **Catálogo:** nome repetido → `409 NOME_JA_EXISTE`; preço de R$ 0,01 a R$ 1.000; produto novo começa com estoque 0 (a quantidade entra como movimento ENTRADA); desligar `controlaEstoque` com estoque > 0 → `422 ZERAR_ESTOQUE_ANTES`. Criação e edição auditadas (`PRODUTO_*`, `CATEGORIA_*`).
+> - **Estoque:** `abaixoDoMinimo` = `estoqueAtual <= estoqueMinimo`; a lista traz só produtos ativos com controle, os que estão acabando primeiro. O AJUSTE trava o produto **antes** de calcular a diferença. Não há auditoria à parte: o livro de movimentos é imutável e guarda o usuário. Erros: `SEM_DIFERENCA`, `MOTIVO_OBRIGATORIO`, `QUANTIDADE_INVALIDA`, `SEM_CONTROLE_ESTOQUE`.
+> - **Relatórios:** `de` e `ate` obrigatórios (AAAA-MM-DD no fuso da escola, até 366 dias); agrupamento por dia feito no Node com Luxon (sem depender de `CONVERT_TZ`); depósitos pela data de aprovação, com os DEVOLVIDOS destacados; `saldos?formato=csv` lista o saldo por aluno e gera auditoria `SALDOS_EXPORTAR`.
+> - **Resumo** (`GET /admin/resumo?data=`): vendas, pedidos, ticket médio, depósitos, recusas por motivo, estoque baixo e alertas `MP_DESCONECTADO`, `MP_EXPIRANDO` (< 30 dias), `DEPOSITO_DEVOLVIDO` e `DEPOSITO_VALOR_DIVERGENTE` (últimos 30 dias), `RECONCILIACAO`, `ENCERRADO_COM_SALDO`.
+> - **Auditoria por perfil:** a Cantina vê as ações de `ACOES_CANTINA` + `ACOES_COMUNS` (`auditoria.servico.ts`); a Diretoria vê todo o resto + as comuns. Ação nova não classificada cai na Diretoria. IP e user-agent não são expostos; o nome de um responsável só aparece para a Diretoria.
+> - **Mercado Pago OAuth** (conferido na documentação oficial em nov/2026): autorização em `https://auth.mercadopago.com/authorization` (`client_id`, `response_type=code`, `platform_id=mp`, `state`, `redirect_uri`); troca em `POST /oauth/token` (JSON); o `code` vale 10 min e é de uso único; o access token vale 180 dias e **renovar devolve um refresh token novo**. O `state` é um JWT de 10 min com `audience: mp-oauth` (não serve como token de acesso, e vice-versa); no callback confere-se de novo se quem começou ainda é ADMIN ativo. Conta MP já usada por outra escola → `MP_CONTA_EM_USO` (sem `ON DUPLICATE KEY UPDATE`, que atualizaria a linha da outra escola). O callback **sempre redireciona** para `URL_PAINEL/painel/cantina/configuracoes?mp=conectado` ou `?mp=erro&motivo=CODIGO`. Sem `MP_CLIENT_ID`/`MP_CLIENT_SECRET` → `409 MP_NAO_CONFIGURADO`. Variáveis: `MP_CLIENT_ID`, `MP_CLIENT_SECRET`, `MP_REDIRECT_URI` (vazio = `URL_PUBLICA_API + /v1/mercadopago/oauth/callback`). ⚠️ PKCE não é usado (se for ligado na aplicação do MP, o código precisa mudar) e a aplicação precisa do escopo `offline_access` (sem ele não vem `refresh_token`). A renovação automática do token é o job da 4D.
+>
+> **Bloco 4B (Diretoria) ✅ pronto.** Decisões tomadas na implementação:
 > - **Equipe (`/admin/usuarios`) já feita para os dois perfis:** ADMIN gerencia ADMIN/OPERADOR, ESCOLA gerencia ESCOLA; usuário de outro perfil = 404 para quem pergunta. Ninguém desativa a si mesmo nem muda o próprio papel (`NAO_PODE_DESATIVAR_A_SI_MESMO`, `NAO_PODE_MUDAR_PROPRIO_PAPEL`). Desativar **ou mudar o papel** revoga as sessões (o papel antigo está dentro do token).
 > - **`PATCH /admin/escola` com permissão por campo:** ESCOLA → `nome`, `timezone`; ADMIN → `depositoMinCentavos`, `depositoMaxCentavos` (R$ 1 a R$ 5.000). Campo de outro perfil → 403. Mínimo > máximo → `422 DEPOSITO_MIN_MAIOR_QUE_MAX`. O GET mostra `mercadoPagoConectado`.
 > - **Ficha do aluno por papel (menor privilégio):** a Cantina vê dados, saldo e carteirinha; responsáveis (com e-mail), convites, regras e bloqueios só a Diretoria.
@@ -210,7 +223,7 @@ cp apps/api/.env.example apps/api/.env            # ajuste o MySQL
 cp apps/api/.env.test.example apps/api/.env.test  # banco *_test (é apagado nos testes)
 npm run db:schema -w apps/api                     # cria o banco "lanchei"
 npm run db:superadmin -w apps/api -- --nome "Mateus" --email voce@exemplo.com --senha "senha-forte-aqui"
-npm run api:test                                  # 299 testes
+npm run api:test                                  # 455 testes
 npm run api:dev                                   # http://localhost:3333/health
 ```
 

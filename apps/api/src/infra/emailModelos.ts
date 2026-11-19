@@ -125,6 +125,23 @@ export const modelos = {
       rodape: 'Este é um aviso automático do Lanchei.',
     }),
 
+  // A cantina encerrou a conta do aluno (saiu da escola, formatura) e devolveu o saldo.
+  contaEncerrada: (d: { nomeResponsavel: string; primeiroNomeAluno: string; escola: string; reembolso: { valor: string; forma: string } | null }) => {
+    const forma = d.reembolso ? { PIX: 'por Pix', TRANSFERENCIA: 'por transferência bancária', DINHEIRO: 'em dinheiro' }[d.reembolso.forma] ?? '' : '';
+    return montar({
+      assunto: `Conta de ${d.primeiroNomeAluno} no Lanchei foi encerrada`,
+      titulo: `Olá, ${d.nomeResponsavel}.`,
+      paragrafos: [
+        `A cantina da escola ${d.escola} encerrou a conta de ${d.primeiroNomeAluno} no Lanchei. A carteirinha deixou de funcionar.`,
+        d.reembolso
+          ? `O saldo de ${d.reembolso.valor} foi registrado como devolvido ${forma} pela cantina. Se você ainda não recebeu, procure a cantina.`
+          : 'A conta não tinha saldo a devolver.',
+        'O histórico de compras continua disponível no aplicativo.',
+      ],
+      rodape: 'Este é um aviso automático do Lanchei.',
+    });
+  },
+
   // Diretoria pede à cantina o encerramento com reembolso (quem devolve o dinheiro é a cantina).
   solicitacaoEncerramento: (d: { nomeAluno: string; matricula: string; motivo: string; solicitante: string; link: string }) =>
     montar({

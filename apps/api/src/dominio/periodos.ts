@@ -29,3 +29,26 @@ export function mesmoDiaNaEscola(a: Date, b: Date, timezone: string): boolean {
   const dbb = DateTime.fromJSDate(b, { zone: timezone });
   return da.hasSame(dbb, 'day');
 }
+
+/** Data "AAAA-MM-DD" válida no calendário? (2026-02-30 não é.) */
+export function dataValida(data: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(data) && DateTime.fromISO(data, { zone: 'utc' }).isValid;
+}
+
+/**
+ * Período informado em datas do calendário da ESCOLA ("2026-11-01" a
+ * "2026-11-30", as duas inclusive) -> intervalo em UTC [inicio, fim) para
+ * comparar com o banco. Qualquer ponta pode faltar (undefined = sem limite).
+ */
+export function intervaloDeDatas(de: string | undefined, ate: string | undefined, timezone: string) {
+  const dia = (s: string) => DateTime.fromISO(s, { zone: timezone }).startOf('day');
+  return {
+    inicio: de ? dia(de).toUTC().toJSDate() : undefined,
+    fim: ate ? dia(ate).plus({ days: 1 }).toUTC().toJSDate() : undefined,
+  };
+}
+
+/** Data (AAAA-MM-DD) de um instante, no calendário da escola. */
+export function dataNaEscola(instante: Date, timezone: string): string {
+  return DateTime.fromJSDate(instante, { zone: timezone }).toFormat('yyyy-MM-dd');
+}

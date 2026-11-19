@@ -29,6 +29,13 @@ const esquema = z.object({
   // Segredo de assinatura dos webhooks (painel do Mercado Pago > Webhooks).
   MP_WEBHOOK_SECRET: opcional(z.string()),
 
+  // OAuth do Mercado Pago (aplicação "Lanchei" no painel de desenvolvedores do MP).
+  // É com ela que cada cantina autoriza a plataforma a criar Pix na conta DELA.
+  MP_CLIENT_ID: opcional(z.string()),
+  MP_CLIENT_SECRET: opcional(z.string()),
+  // Precisa ser IGUAL à URL cadastrada no painel do MP. Vazio = URL_PUBLICA_API + /v1/mercadopago/oauth/callback.
+  MP_REDIRECT_URI: opcional(z.url()),
+
   // Origens liberadas no CORS (painel web), separadas por vírgula.
   CORS_ORIGENS: z.string().default('http://localhost:5173'),
 

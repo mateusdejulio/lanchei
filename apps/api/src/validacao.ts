@@ -1,5 +1,6 @@
 // Pedaços de validação (Zod) reaproveitados por várias rotas.
 import { z } from 'zod';
+import { dataValida } from './dominio/periodos.js';
 
 /** E-mail sem espaços nas pontas e em minúsculas (o banco guarda assim; o UNIQUE depende disso). */
 export const zEmail = z.preprocess(
@@ -22,3 +23,12 @@ export const zId = z.coerce.number().int().positive();
 
 /** Token que veio num link de e-mail. */
 export const zTokenEmail = z.string().min(20).max(200);
+
+/** Data do calendário, "AAAA-MM-DD" (30/02 é recusado). Interpretada no fuso da escola. */
+export const zData = z.string().refine(dataValida, 'Data inválida (use AAAA-MM-DD).');
+
+/** "true"/"false" vindos da query string. (z.coerce.boolean() transformaria "false" em true.) */
+export const zBoolQuery = z.enum(['true', 'false']).transform((v) => v === 'true');
+
+/** Header Idempotency-Key: UUID gerado pelo cliente (um por tentativa de operação). */
+export const zChaveIdempotencia = z.uuid();

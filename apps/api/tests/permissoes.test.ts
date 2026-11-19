@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { db } from '../src/infra/db.js';
 import { criarApp } from '../src/app.js';
-import { criarAluno, criarEscola, criarSuperadmin, logarEquipe, SENHA } from './fixtures.js';
+import { criarAluno, criarEscola, criarSuperadmin, logarEquipe, novaChave, SENHA } from './fixtures.js';
 
 afterAll(() => db.destroy());
 const app = criarApp();
@@ -60,6 +60,30 @@ const MATRIZ: Rota[] = [
   { metodo: 'post', caminho: '/v1/admin/alunos/:aluno/carteirinhas', pode: ['ESCOLA'], descricao: 'emitir carteirinha' },
   { metodo: 'post', caminho: '/v1/admin/turmas/:turma/carteirinhas', pode: ['ESCOLA'], descricao: 'emitir em lote' },
   { metodo: 'post', caminho: '/v1/admin/alunos/:aluno/carteirinha/desbloquear', pode: ['ESCOLA'], descricao: 'desbloquear carteirinha' },
+  // ---- Cantina (4C) ----
+  { metodo: 'get', caminho: '/v1/admin/mercadopago/status', pode: ['ADMIN'], descricao: 'status do Mercado Pago' },
+  { metodo: 'post', caminho: '/v1/admin/mercadopago/conectar', pode: ['ADMIN'], descricao: 'conectar Mercado Pago' },
+  { metodo: 'get', caminho: '/v1/admin/categorias', pode: ['ADMIN'], descricao: 'listar categorias' },
+  { metodo: 'post', caminho: '/v1/admin/categorias', pode: ['ADMIN'], descricao: 'criar categoria' },
+  { metodo: 'patch', caminho: '/v1/admin/categorias/:categoria', pode: ['ADMIN'], descricao: 'editar categoria' },
+  { metodo: 'get', caminho: '/v1/admin/produtos', pode: ['ADMIN'], descricao: 'listar produtos' },
+  { metodo: 'post', caminho: '/v1/admin/produtos', pode: ['ADMIN'], descricao: 'criar produto' },
+  { metodo: 'patch', caminho: '/v1/admin/produtos/:produto', pode: ['ADMIN'], descricao: 'editar produto' },
+  { metodo: 'get', caminho: '/v1/admin/pedidos', pode: ['ADMIN'], descricao: 'listar pedidos' },
+  { metodo: 'get', caminho: '/v1/admin/pedidos/:pedido', pode: ['ADMIN'], descricao: 'detalhe do pedido' },
+  { metodo: 'post', caminho: '/v1/admin/pedidos/:pedido/estorno', pode: ['ADMIN'], descricao: 'estorno de qualquer data' },
+  { metodo: 'post', caminho: '/v1/admin/vendas-manuais', pode: ['ADMIN'], descricao: 'venda manual' },
+  { metodo: 'post', caminho: '/v1/admin/alunos/:aluno/ajustes', pode: ['ADMIN'], descricao: 'ajuste de saldo' },
+  { metodo: 'post', caminho: '/v1/admin/alunos/:aluno/encerramento', pode: ['ADMIN'], descricao: 'encerramento com reembolso' },
+  { metodo: 'get', caminho: '/v1/admin/resumo', pode: ['ADMIN'], descricao: 'resumo do dia' },
+  { metodo: 'get', caminho: '/v1/admin/relatorios/vendas', pode: ['ADMIN'], descricao: 'relatório de vendas' },
+  { metodo: 'get', caminho: '/v1/admin/relatorios/depositos', pode: ['ADMIN'], descricao: 'relatório de depósitos' },
+  { metodo: 'get', caminho: '/v1/admin/relatorios/saldos', pode: ['ADMIN'], descricao: 'saldos em aberto' },
+  { metodo: 'get', caminho: '/v1/admin/auditoria', pode: ['ADMIN', 'ESCOLA'], descricao: 'auditoria (cada perfil a sua parte)' },
+  // Estoque: Cantina e operador
+  { metodo: 'get', caminho: '/v1/estoque', pode: ['ADMIN', 'OPERADOR'], descricao: 'ver estoque' },
+  { metodo: 'post', caminho: '/v1/estoque/movimentos', pode: ['ADMIN', 'OPERADOR'], descricao: 'lançar movimento de estoque' },
+  { metodo: 'get', caminho: '/v1/estoque/movimentos', pode: ['ADMIN', 'OPERADOR'], descricao: 'histórico de estoque' },
   // Caixa (já existia): ADMIN e OPERADOR, nunca ESCOLA
   { metodo: 'post', caminho: '/v1/caixa/identificar', pode: ['ADMIN', 'OPERADOR'], descricao: 'caixa: identificar' },
   // Plataforma: só SUPERADMIN
@@ -73,7 +97,16 @@ beforeAll(async () => {
   const escola = await criarEscola();
   const aluno = await criarAluno(escola, { responsaveis: 1 });
   const convite = await db('convites_responsavel_lanchei').where({ aluno_id: aluno.alunoId }).first();
-  ids = { aluno: aluno.alunoId, turma: escola.turmaId, convite: convite.id, usuario: escola.operadorId, resp: aluno.responsavelIds[0]! };
+  // Um pedido RECUSADO (sem saldo): existe para as rotas de pedido e o estorno dele não altera nada.
+  const [pedidoId] = await db('pedidos_lanchei').insert({
+    escola_id: escola.escolaId, aluno_id: aluno.alunoId, conta_id: aluno.contaId, operador_id: escola.operadorId,
+    modo_identificacao: 'CARTEIRINHA', carteirinha_id: aluno.carteirinhaId, idempotency_key: novaChave(),
+    status: 'RECUSADO', motivo_recusa: 'SALDO_INSUFICIENTE', total_centavos: 600,
+  });
+  ids = {
+    aluno: aluno.alunoId, turma: escola.turmaId, convite: convite.id, usuario: escola.operadorId, resp: aluno.responsavelIds[0]!,
+    categoria: escola.categorias.doces, produto: escola.produtos.suco, pedido: pedidoId!,
+  };
 
   tokens.ADMIN = (await logarEquipe(app, escola.adminEmail)).token;
   tokens.ESCOLA = (await logarEquipe(app, escola.diretoriaEmail)).token;
@@ -98,8 +131,8 @@ describe.each(MATRIZ)('$metodo $caminho ($descricao)', (rota) => {
   });
 });
 
-it('sem token → 401 em todo o /admin', async () => {
-  for (const rota of MATRIZ.filter((r) => r.caminho.startsWith('/v1/admin'))) {
+it('sem token → 401 em todo o /admin e no /estoque', async () => {
+  for (const rota of MATRIZ.filter((r) => r.caminho.startsWith('/v1/admin') || r.caminho.startsWith('/v1/estoque'))) {
     expect((await request(app)[rota.metodo](montar(rota.caminho)).send({})).status).toBe(401);
   }
 });

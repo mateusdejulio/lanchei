@@ -38,8 +38,8 @@ API REST em Node + Express + TypeScript, hospedada no Render. Banco MySQL no Aiv
 | 401 | Sem token, token expirado ou inválido | `NAO_AUTENTICADO`, `TOKEN_EXPIRADO` |
 | 403 | Logado, mas o papel não permite | `SEM_PERMISSAO` |
 | 404 | Não existe ou não é seu | `NAO_ENCONTRADO`, `CARTEIRINHA_INVALIDA` |
-| 409 | Conflito de estado | `ESTOQUE_INSUFICIENTE`, `EMAIL_JA_CADASTRADO`, `SLUG_JA_EXISTE`, `MATRICULA_JA_EXISTE`, `TURMA_JA_EXISTE`, `RESPONSAVEL_JA_VINCULADO`, `CONVITE_JA_USADO`, `JA_ESTORNADO`, `MP_NAO_CONECTADO` |
-| 422 | Regra de negócio recusou | `COMPRA_RECUSADA` (+ `detalhes.motivo`), `CODIGO_INVALIDO`, `TOKEN_INVALIDO` (link de e-mail inválido/vencido/usado), `ALUNO_ENCERRADO`, `TURMA_INATIVA`, `TURMA_COM_ALUNOS`, `IMAGEM_INVALIDA`, `ARQUIVO_NAO_UTF8`, `IMPORTACAO_COM_ERROS`, `DEPOSITO_MIN_MAIOR_QUE_MAX`, `PIN_INCORRETO`, `VALOR_FORA_DO_LIMITE`, `SALDO_PENDENTE` |
+| 409 | Conflito de estado | `ESTOQUE_INSUFICIENTE`, `EMAIL_JA_CADASTRADO`, `SLUG_JA_EXISTE`, `MATRICULA_JA_EXISTE`, `TURMA_JA_EXISTE`, `RESPONSAVEL_JA_VINCULADO`, `CONVITE_JA_USADO`, `NOME_JA_EXISTE`, `AJUSTE_DUPLICADO`, `JA_ENCERRADO`, `DEPOSITO_PENDENTE`, `MP_NAO_CONFIGURADO`, `MP_CONTA_EM_USO`, `IDEMPOTENCY_KEY_REUTILIZADA`, `JA_ESTORNADO`, `MP_NAO_CONECTADO` |
+| 422 | Regra de negócio recusou | `COMPRA_RECUSADA` (+ `detalhes.motivo`), `CODIGO_INVALIDO`, `TOKEN_INVALIDO` (link de e-mail inválido/vencido/usado), `ALUNO_ENCERRADO`, `TURMA_INATIVA`, `TURMA_COM_ALUNOS`, `IMAGEM_INVALIDA`, `ARQUIVO_NAO_UTF8`, `IMPORTACAO_COM_ERROS`, `DEPOSITO_MIN_MAIOR_QUE_MAX`, `SALDO_INSUFICIENTE`, `ZERAR_ESTOQUE_ANTES`, `SEM_DIFERENCA`, `MOTIVO_OBRIGATORIO`, `DATA_NO_FUTURO`, `DATA_MUITO_ANTIGA`, `PERIODO_INVALIDO`, `PERIODO_GRANDE_DEMAIS`, `MP_STATE_INVALIDO`, `PIN_INCORRETO`, `VALOR_FORA_DO_LIMITE`, `SALDO_PENDENTE` |
 | 423 | Bloqueado temporariamente | `PIN_BLOQUEADO`, `CONTA_TEMPORARIAMENTE_BLOQUEADA` |
 | 429 | Muitas tentativas | `MUITAS_TENTATIVAS` |
 
@@ -116,9 +116,9 @@ Rate limit: login com **5 tentativas por 15 min** por e-mail + IP; esqueci-senha
 |---|---|---|---|
 | GET | `/admin/escola` | | Dados e configurações da escola |
 | PATCH | `/admin/escola` | `{ nome?, timezone?, depositoMinCentavos?, depositoMaxCentavos? }` | |
-| GET | `/admin/mercadopago/status` | | `{ conectado, mpUserId?, tokenExpiraEm? }` |
+| GET | `/admin/mercadopago/status` | | `{ conectado, configurado, mpUserId?, conectadoEm?, tokenExpiraEm?, expirando? }` (`configurado: false` = a plataforma ainda não tem `MP_CLIENT_ID`) |
 | POST | `/admin/mercadopago/conectar` | | `{ url }`: URL de autorização do MP com `state` assinado. O admin abre, faz login na conta da cantina e autoriza |
-| GET | `/mercadopago/oauth/callback?code&state` | P (valida `state`) | Troca o `code` pelos tokens, criptografa, salva e redireciona para o painel |
+| GET | `/mercadopago/oauth/callback?code&state` | P (valida `state`) | Troca o `code` pelos tokens, criptografa, salva e **redireciona (303)** para `/painel/cantina/configuracoes?mp=conectado` ou `?mp=erro&motivo=CODIGO` (`MP_STATE_INVALIDO`, `AUTORIZACAO_NEGADA`, `MP_CONTA_EM_USO`, `GATEWAY_INDISPONIVEL`...) |
 
 **Equipe**
 
@@ -190,11 +190,12 @@ Rate limit: login com **5 tentativas por 15 min** por e-mail + IP; esqueci-senha
 | GET | `/admin/pedidos` | `?de=&ate=&status=&alunoId=&operadorId=&cursor=` | |
 | GET | `/admin/pedidos/:id` | | Com itens |
 | POST | `/admin/pedidos/:id/estorno` | `{ motivo, devolverEstoque: boolean }` | Admin estorna pedido de qualquer data |
-| POST | `/admin/vendas-manuais` | `{ alunoId, itens: [{ produtoId, quantidade }], ocorridoEm, observacao }` + `Idempotency-Key` | **Contingência** (internet caiu). Valida só saldo e estoque, já que a venda já aconteceu fisicamente. Fica marcada como `MANUAL` |
-| GET | `/admin/relatorios/vendas` | `?de=&ate=&agrupar=dia\|produto\|categoria\|operador` | Totais e quantidades (só CONFIRMADOS) |
-| GET | `/admin/relatorios/depositos` | `?de=&ate=` | Depósitos aprovados, valor bruto e taxa |
-| GET | `/admin/relatorios/saldos` | | Soma dos saldos em aberto (o que a cantina "deve" em consumo) |
-| GET | `/admin/auditoria` | `?alunoId=&acao=&de=&ate=&cursor=` | Trilha de auditoria |
+| POST | `/admin/vendas-manuais` | `{ alunoId, itens: [{ produtoId, quantidade }], ocorridoEm, observacao }` + `Idempotency-Key` | **Contingência** (internet caiu). Valida só saldo e estoque, já que a venda já aconteceu fisicamente. Fica marcada como `MANUAL`. `ocorridoEm` em ISO 8601 com fuso, até 60 dias atrás. `201 { pedido }`; sem saldo: `422 SALDO_INSUFICIENTE` e nada gravado |
+| GET | `/admin/relatorios/vendas` | `?de=&ate=&agrupar=dia\|produto\|categoria\|operador&formato=json\|csv` | `{ de, ate, agrupar, totais: { totalCentavos, pedidos, ticketMedioCentavos }, linhas: [{ chave, rotulo, totalCentavos, quantidade }] }` (só CONFIRMADOS; `de`/`ate` obrigatórios, até 366 dias) |
+| GET | `/admin/relatorios/depositos` | `?de=&ate=&formato=` | `{ totais: { brutoCentavos, taxaCentavos, liquidoCentavos, quantidade }, devolvidos: { quantidade, centavos }, linhas: [por dia] }` |
+| GET | `/admin/relatorios/saldos` | `?formato=` | `{ totalCentavos, contasComSaldo, maiorSaldoCentavos }` (o que a cantina "deve" em consumo). CSV: saldo por aluno, auditado |
+| GET | `/admin/resumo` | `?data=AAAA-MM-DD` | Início da Cantina: `{ data, vendas, depositos, recusasPorMotivo, estoqueBaixo, alertas: [{ tipo, mensagem, quantidade? }] }` |
+| GET | `/admin/auditoria` | `?alunoId=&acao=&de=&ate=&limite=&cursor=` | (ADMIN, ESCOLA) Trilha de auditoria; cada perfil vê a sua parte. Itens: `{ id, acao, entidade, entidadeId, alunoId, ator: { tipo, id, nome }, antes, depois, criadoEm }` |
 | GET | `/admin/pendencias` | | (ESCOLA) Contagens do "o que falta fazer" (etapa6 §5.1) |
 | GET | `/admin/alunos/:id/extrato` | `?de=&ate=&tipo=&limite=&cursor=` | (ADMIN, ESCOLA) Ledger + compras recusadas (`tipo: RECUSADA`). Auditado |
 | GET | `/admin/alunos/:id/extrato.csv` | `?de=&ate=&tipo=` | (ADMIN, ESCOLA) CSV para Excel. Auditado |
@@ -295,7 +296,7 @@ A identificação vai de novo no pedido (em vez de só o `alunoId`) para que o c
 |---|---|---|---|
 | GET | `/estoque` | `?baixo=true` | Produtos que controlam estoque: `{ id, nome, estoqueAtual, estoqueMinimo, abaixoDoMinimo }` |
 | POST | `/estoque/movimentos` | `{ produtoId, tipo: "ENTRADA" \| "PERDA" \| "AJUSTE", quantidade, motivo? }` | Para AJUSTE, `quantidade` é a **contagem real** (a API calcula a diferença e exige `motivo`). ENTRADA e PERDA recebem quantidade positiva; a API aplica o sinal |
-| GET | `/estoque/movimentos` | `?produtoId=&de=&ate=&cursor=` | Histórico |
+| GET | `/estoque/movimentos` | `?produtoId=&de=&ate=&limite=&cursor=` | Histórico: `{ id, produto, tipo, quantidade (com sinal), estoqueApos, pedidoId, motivo, usuario, criadoEm }` |
 
 ### 2.7 App dos responsáveis (`/v1/me`): RESPONSAVEL
 

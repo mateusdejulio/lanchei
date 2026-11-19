@@ -37,7 +37,7 @@ Antes de dizer que algo está pronto: `api:typecheck` e `api:test` precisam pass
 ## Regras invioláveis (resumo; detalhes em docs/etapa4-backend.md §2)
 - Dinheiro **sempre em centavos inteiros**. Nunca float.
 - Saldo só muda por `lancarTransacao()` (`src/dominio/ledger.ts`); estoque só por `movimentarEstoque()` (`src/dominio/estoque.ts`). O ledger é imutável (triggers).
-- Ordem de locks: **conta → pedido/depósito → produtos (id crescente)**.
+- Ordem de locks: **conta → (aluno) → pedido/depósito → produtos (id crescente)**. A linha do aluno só é travada junto com a conta no encerramento; rotas que travam só o aluno nunca travam a conta depois.
 - `escolaId` vem **do token**, nunca da requisição. Recurso de outro tenant/responsável → **404**.
 - O caixa **nunca** recebe saldo do aluno.
 - Notificações entram na mesma transação (outbox); o push sai por job.

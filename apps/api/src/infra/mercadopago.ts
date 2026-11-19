@@ -138,3 +138,82 @@ export function validarAssinaturaMp(p: {
   const esperado = createHmac('sha256', p.segredo).update(manifesto).digest();
   return iguaisSeguro(esperado, Buffer.from(v1, 'hex'));
 }
+
+// ---------------------------------------------------------------------
+// OAuth: a cantina autoriza a plataforma a agir na conta Mercado Pago DELA.
+// Conferido na documentação oficial (docs/security/oauth, nov/2026):
+//   - autorização: https://auth.mercadopago.com/authorization
+//       ?client_id&response_type=code&platform_id=mp&state&redirect_uri
+//   - o "code" devolvido vale 10 minutos e só pode ser usado uma vez;
+//   - troca e renovação: POST https://api.mercadopago.com/oauth/token (JSON);
+//   - o access token vale 180 dias; RENOVAR devolve também um refresh token
+//     NOVO, que precisa ser guardado (o antigo deixa de valer).
+// ⚠️ PKCE é opcional no MP e depende da configuração da aplicação; não usamos.
+//    Se for ligado no painel do MP, é preciso enviar code_challenge/code_verifier.
+// ---------------------------------------------------------------------
+
+export interface TokensOAuthMp {
+  accessToken: string;
+  refreshToken: string;
+  /** id do vendedor (a cantina) no MP; é ele que vem nos webhooks. */
+  mpUserId: string;
+  publicKey: string | null;
+  expiraEm: Date;
+}
+
+export interface ClienteOAuthMp {
+  urlAutorizacao(p: { state: string; redirectUri: string }): string;
+  trocarCodigo(p: { code: string; redirectUri: string }): Promise<TokensOAuthMp>;
+  renovar(refreshToken: string): Promise<TokensOAuthMp>;
+}
+
+export function criarClienteOAuthMp(cred: { clientId: string; clientSecret: string }): ClienteOAuthMp {
+  async function pedirTokens(corpo: Record<string, string>, agora = new Date()): Promise<TokensOAuthMp> {
+    const resp = await fetch(`${BASE}/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ client_id: cred.clientId, client_secret: cred.clientSecret, ...corpo }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    // Nunca colocar o corpo da resposta no erro/log: ele pode conter tokens.
+    if (!resp.ok) throw new Error(`MP oauth/token falhou: HTTP ${resp.status}`);
+    const t = (await resp.json()) as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+      user_id?: unknown;
+      public_key?: unknown;
+      expires_in?: unknown;
+    };
+    if (
+      typeof t.access_token !== 'string' ||
+      typeof t.refresh_token !== 'string' ||
+      (typeof t.user_id !== 'number' && typeof t.user_id !== 'string') ||
+      typeof t.expires_in !== 'number'
+    ) {
+      // Sem refresh_token = a aplicação não tem o escopo offline_access.
+      throw new Error('MP oauth/token: resposta incompleta (confira o escopo offline_access da aplicação)');
+    }
+    return {
+      accessToken: t.access_token,
+      refreshToken: t.refresh_token,
+      mpUserId: String(t.user_id),
+      publicKey: typeof t.public_key === 'string' ? t.public_key : null,
+      expiraEm: new Date(agora.getTime() + t.expires_in * 1000),
+    };
+  }
+
+  return {
+    urlAutorizacao({ state, redirectUri }) {
+      const q = new URLSearchParams({
+        client_id: cred.clientId,
+        response_type: 'code',
+        platform_id: 'mp',
+        state,
+        redirect_uri: redirectUri,
+      });
+      return `https://auth.mercadopago.com/authorization?${q.toString()}`;
+    },
+    trocarCodigo: ({ code, redirectUri }) => pedirTokens({ grant_type: 'authorization_code', code, redirect_uri: redirectUri }),
+    renovar: (refreshToken) => pedirTokens({ grant_type: 'refresh_token', refresh_token: refreshToken }),
+  };
+}

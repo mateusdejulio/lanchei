@@ -351,7 +351,8 @@ async function avisarRecusa(
   });
 }
 
-async function resultadoDePedidoExistente(
+/** Resposta de um pedido já gravado (replay de Idempotency-Key). Também usada pela venda manual. */
+export async function resultadoDePedidoExistente(
   trx: Trx,
   p: { id: number; status: 'CONFIRMADO' | 'RECUSADO' | 'ESTORNADO'; motivo_recusa: MotivoRecusa | null; total_centavos: number },
 ): Promise<ResultadoCompra> {

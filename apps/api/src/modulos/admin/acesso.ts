@@ -60,3 +60,7 @@ export function exigirNaoEncerrado(a: AlunoBasico) {
 /** Nome da escola (para os e-mails). */
 export const nomeDaEscola = async (conn: Db, escolaId: number) =>
   (await conn('escolas_lanchei').where({ id: escolaId }).first<{ nome: string }>('nome')).nome;
+
+/** Fuso horário da escola ("hoje", períodos e relatórios são sempre no fuso dela). */
+export const fusoDaEscola = async (conn: Db, escolaId: number) =>
+  (await conn('escolas_lanchei').where({ id: escolaId }).first<{ timezone: string }>('timezone')).timezone;

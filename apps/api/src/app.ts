@@ -9,6 +9,9 @@ import { rotasCaixa } from './modulos/caixa/caixa.rotas.js';
 import { rotasWebhooks } from './modulos/webhooks/webhook.rotas.js';
 import { rotasPlataforma } from './modulos/plataforma/plataforma.rotas.js';
 import { rotasAdmin } from './modulos/admin/admin.rotas.js';
+import { rotasCantina } from './modulos/admin/cantina.rotas.js';
+import { rotasMercadoPago } from './modulos/admin/mercadopago.rotas.js';
+import { rotasEstoque } from './modulos/estoque/estoque.rotas.js';
 
 export function criarApp() {
   const app = express();
@@ -24,11 +27,14 @@ export function criarApp() {
   app.use(rotasSaude);
   app.use('/v1/auth', rotasAuth);
   app.use('/v1/plataforma', rotasPlataforma);
+  // /v1/admin tem dois routers: Diretoria (admin.rotas) e Cantina (cantina.rotas).
   app.use('/v1/admin', rotasAdmin);
+  app.use('/v1/admin', rotasCantina);
+  app.use('/v1/estoque', rotasEstoque);
+  app.use('/v1/mercadopago', rotasMercadoPago);
   app.use('/v1/caixa', rotasCaixa);
   app.use('/v1/webhooks', rotasWebhooks);
-  // A IMPLEMENTAR: /v1/admin (rotas da Cantina, 4C), /v1/estoque, /v1/me,
-  // /v1/termos, /v1/mercadopago/oauth/callback (ver docs/etapa4-backend.md)
+  // A IMPLEMENTAR (4D): /v1/me, /v1/termos, /v1/push e o restante de /v1/caixa
 
   app.use(rotaNaoEncontrada);
   app.use(tratarErros);
