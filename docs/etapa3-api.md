@@ -91,6 +91,7 @@ Legenda de acesso: **P** = público, **S** = superadmin, **A** = admin, **O** = 
 | POST | `/auth/responsavel/reenviar-verificacao` | P | `{ email }` | `202` (sempre, mesmo se o e-mail não existir) |
 | POST | `/auth/responsavel/login` | P | `{ email, senha }` | `{ accessToken, refreshToken, responsavel: { id, nome, emailVerificado } }` |
 | POST | `/auth/refresh` | P | `{ refreshToken }` | `{ accessToken, refreshToken }` (novo par) |
+| GET | `/auth/equipe/eu` | Equipe logada | | `{ usuario: { id, nome, papel, escola } }` (o front chama ao recarregar a página: o refresh pelo cookie devolve só o token) |
 | POST | `/auth/logout` | P | `{ refreshToken }` | `204` |
 | POST | `/auth/senha/esqueci` | P | `{ email, perfil: "EQUIPE" \| "RESPONSAVEL" }` | `202` (sempre) |
 | POST | `/auth/senha/redefinir` | P | `{ token, novaSenha }` | `204`. Revoga todas as sessões |

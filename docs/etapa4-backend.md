@@ -6,7 +6,7 @@ Contratos de todas as rotas (método, rota, perfil, request/response, códigos d
 
 ---
 
-## 1. O que já está pronto e testado (576 testes passando)
+## 1. O que já está pronto e testado (577 testes passando)
 
 | Arquivo | O que faz |
 |---|---|
@@ -243,7 +243,7 @@ cp apps/api/.env.example apps/api/.env            # ajuste o MySQL
 cp apps/api/.env.test.example apps/api/.env.test  # banco *_test (é apagado nos testes)
 npm run db:schema -w apps/api                     # cria o banco "lanchei"
 npm run db:superadmin -w apps/api -- --nome "Mateus" --email voce@exemplo.com --senha "senha-forte-aqui"
-npm run api:test                                  # 576 testes
+npm run api:test                                  # 577 testes
 npm run api:dev                                   # http://localhost:3333/health
 ```
 

@@ -63,3 +63,9 @@ jobs:
 
       - name: Testes da API
         run: npm run api:test
+
+      - name: Testes do caixa/painel (apps/web)
+        run: npm test -w apps/web
+
+      - name: Build de produção (o mesmo do Render)
+        run: npm run build

@@ -4,7 +4,8 @@
 //   - esqueci/redefinir senha (equipe e responsável).
 import { Router } from 'express';
 import { z } from 'zod';
-import { loginEquipe, loginResponsavel } from './auth.servico.js';
+import { loginEquipe, loginResponsavel, usuarioDaSessao } from './auth.servico.js';
+import { autenticar } from '../../middlewares/autenticacao.js';
 import { revogarSessao, rotacionarRefresh } from './tokens.js';
 import { cadastrarResponsavel, MENSAGEM_CADASTRO, reenviarVerificacao, verificarEmail } from './cadastro.servico.js';
 import { esqueciSenha, redefinirSenha } from './senha.servico.js';
@@ -42,6 +43,12 @@ rotasAuth.post('/equipe/login', limiteLogin, async (req, res) => {
 rotasAuth.post('/responsavel/login', limiteLogin, async (req, res) => {
   const { email, senha } = credenciais.parse(req.body);
   responderComTokens(req, res, await loginResponsavel(email, senha, cliente(req)));
+});
+
+// Quem está logado (o front chama ao recarregar a página). Só equipe.
+rotasAuth.get('/equipe/eu', autenticar, async (req, res) => {
+  if (req.auth!.tipo !== 'USUARIO') throw erros.semPermissao();
+  res.json({ usuario: await usuarioDaSessao(req.auth!.id) });
 });
 
 // Sempre 201 com a mesma mensagem, mesmo se o e-mail já tiver conta (ver cadastro.servico.ts).

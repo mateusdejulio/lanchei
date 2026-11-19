@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:schema": "tsx --env-file=.env scripts/aplicarSchema.ts",
-    "db:superadmin": "tsx --env-file=.env scripts/criarSuperadmin.ts"
+    "db:superadmin": "tsx --env-file=.env scripts/criarSuperadmin.ts",
+    "db:demo": "tsx --env-file=.env scripts/criarDemo.ts"
   },
   "dependencies": {
     "argon2": "^0.44.0",

@@ -41,6 +41,22 @@ export async function loginEquipe(email: string, senha: string, cliente: InfoCli
   };
 }
 
+/**
+ * GET /auth/equipe/eu: quem está logado (nome, papel, escola).
+ * O front chama ao recarregar a página: o refresh pelo cookie devolve só o
+ * access token, e a tela precisa do nome e do papel para decidir o que mostrar.
+ */
+export async function usuarioDaSessao(usuarioId: number) {
+  const u = await db('usuarios_lanchei as u')
+    .leftJoin('escolas_lanchei as e', 'e.id', 'u.escola_id')
+    .where({ 'u.id': usuarioId, 'u.ativo': true })
+    .first<{ id: number; nome: string; papel: Papel; escola_id: number | null; escola_nome: string | null } | undefined>(
+      'u.id', 'u.nome', 'u.papel', 'u.escola_id', 'e.nome as escola_nome',
+    );
+  if (!u) throw erros.naoAutenticado();
+  return { id: u.id, nome: u.nome, papel: u.papel, escola: u.escola_id === null ? null : { id: u.escola_id, nome: u.escola_nome } };
+}
+
 export async function loginResponsavel(email: string, senha: string, cliente: InfoCliente) {
   const r = await db('responsaveis_lanchei')
     .where({ email: email.toLowerCase() })

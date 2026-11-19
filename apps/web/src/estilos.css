@@ -1,0 +1,99 @@
+/* Tailwind v4: a configuração do tema fica aqui no CSS (@theme), não num arquivo JS.
+   Os tokens abaixo são os do mockup "Lanchei — Tela do caixa (tablet)" (etapa5 §8).
+   Cada um vira classe: bg-fundo, text-texto-2, border-borda, bg-marca... */
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+
+  --color-fundo: #f4f5f1; /* fundo da tela */
+  --color-superficie: #ffffff;
+  --color-neutro: #eef0ea; /* chips, botão do operador */
+  --color-neutro-2: #e2e5dd; /* botão desabilitado, selo "Esgotado" */
+  --color-placeholder: #d9ddd3; /* fundo da foto enquanto carrega */
+  --color-borda: #e2e5dd;
+  --color-borda-2: #d5d9d0; /* botões com contorno */
+  --color-borda-3: #dce0d7; /* cartões de produto */
+  --color-borda-tracejada: #c9cec4;
+  --color-texto: #17201b;
+  --color-texto-2: #3d4741;
+  --color-texto-3: #5b6660;
+  --color-texto-4: #4a544e;
+  --color-camera: #1b2420;
+
+  --color-marca: #e8590c; /* laranja Lanchei */
+  --color-marca-suave: #fff4ec;
+  --color-aprovado: #1f7a4d;
+  --color-aprovado-escuro: #145a38;
+  --color-aprovado-suave: #e7f4ec;
+  --color-aprovado-texto: #166a3f;
+  --color-aprovado-ponto: #1f8a50;
+  --color-recusado: #b42318;
+  --color-recusado-suave: #ffe3e0;
+  --color-aviso: #fff1d6;
+  --color-aviso-texto: #8a4b00;
+  --color-orientacao-texto: #5c2a00;
+  --color-modal-fundo: #3a423e;
+}
+
+@layer base {
+  html,
+  body,
+  #raiz {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-fundo);
+    color: var(--color-texto);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* Tablet: nada de "selecionar texto" ao tocar e segurar, nem zoom com dois toques. */
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  input,
+  textarea {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
+  /* Foco visível para quem usa teclado; sem o contorno ao tocar. */
+  :focus-visible {
+    outline: 3px solid var(--color-marca);
+    outline-offset: 2px;
+  }
+}
+
+/* As bolinhas do PIN "tremem" quando o PIN está errado. */
+@keyframes tremer {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+}
+.tremer {
+  animation: tremer 0.4s ease-in-out;
+}
+
+/* Gaveta lateral (vendas de hoje). */
+@keyframes entrar-da-direita {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.gaveta-entrar {
+  animation: entrar-da-direita 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tremer, .gaveta-entrar {
+    animation: none;
+  }
+}

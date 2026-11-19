@@ -120,6 +120,15 @@ describe('refresh em cookie (X-Cliente: web)', () => {
     expect((await agente.post('/v1/auth/refresh').set('X-Cliente', 'web')).status).toBe(401); // o dono também cai
   });
 
+  it('ao recarregar: refresh pelo cookie + GET /auth/equipe/eu devolvem a sessão inteira', async () => {
+    const agente = request.agent(app);
+    await login(agente);
+    const r = await agente.post('/v1/auth/refresh').set('X-Cliente', 'web');
+    const eu = await request(app).get('/v1/auth/equipe/eu').set('Authorization', `Bearer ${r.body.accessToken}`);
+    expect(eu.body.usuario).toEqual({ id: escola.adminId, nome: 'Admin', papel: 'ADMIN', escola: { id: escola.escolaId, nome: expect.any(String) } });
+    expect((await request(app).get('/v1/auth/equipe/eu')).status).toBe(401);
+  });
+
   it('sem o header o cookie é ignorado (modo JSON); app dos pais usa outro cookie', async () => {
     const agente = request.agent(app);
     await login(agente);

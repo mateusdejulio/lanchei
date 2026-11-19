@@ -29,6 +29,8 @@ npm run dev                    # sobe API (+ painel e app dos pais, quando exist
 npm run typecheck              # todos os workspaces
 npm run build                  # build de produção (shared → apps)
 npm run shared:test            # testes do packages/shared (sem banco)
+npm test -w apps/web           # testes do caixa/painel (jsdom, sem banco)
+npm run db:demo -w apps/api    # escola de demonstração (cardápio do mockup, logins e QR)
 npm run api:test               # testes da API (MySQL real; banco *_test é recriado)
 npm run api:typecheck
 npm run api:dev                # API em http://localhost:3333
@@ -36,7 +38,7 @@ npm run db:schema -w apps/api  # aplica database/schema.sql (--sem-triggers só 
 MYSQL="mysql -u root -p" database/testar_schema.sh   # 26 regras de integridade
 MYSQL="mysql -u root -p" database/testar_grants.sh   # permissões mínimas do usuário da API
 ```
-Antes de dizer que algo está pronto: `typecheck`, `shared:test` e `api:test` precisam passar (e os dois scripts do banco, se mexeu no schema). O CI (`.github/workflows/ci.yml`) roda tudo isso a cada push.
+Antes de dizer que algo está pronto: `typecheck`, `shared:test`, `api:test`, `npm test -w apps/web` e `npm run build` precisam passar (e os dois scripts do banco, se mexeu no schema). O CI (`.github/workflows/ci.yml`) roda tudo isso a cada push.
 
 ## Regras invioláveis (resumo; detalhes em docs/etapa4-backend.md §2)
 - Dinheiro **sempre em centavos inteiros**. Nunca float.
@@ -54,6 +56,7 @@ Antes de dizer que algo está pronto: `typecheck`, `shared:test` e `api:test` pr
 - Identificadores, comentários, mensagens e docs em **português**.
 - Módulos em `src/modulos/<nome>/` com `*.rotas.ts` (HTTP) e `*.servico.ts` (regras + banco).
 - Regras de negócio complexas viram **funções puras** em `src/dominio/` (fáceis de testar).
+- Fronts: dependências com **versão exata** (sem `~`/`^`) e publicadas há mais de 2 semanas. O `barcode-detector` e o `zxing-wasm` precisam usar o MESMO ZXing (há teste que confere).
 - Cada funcionalidade nova vem com testes em `apps/api/tests/`, usando `tests/fixtures.ts` (cada teste cria a própria escola, então os testes não interferem entre si).
 - Mudança de schema: edite `database/schema.sql`, adicione o GRANT da tabela nova em `database/grants.sql`, rode `testar_schema.sh` e `testar_grants.sh` e atualize `docs/etapa2-modelagem.md`.
 - Em produção a API usa o usuário `lanchei_api` (privilégios mínimos): **nunca** escreva código que dependa de DELETE em tabelas fora de `bloqueios_*`, nem de DDL em tempo de execução.

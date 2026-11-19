@@ -101,7 +101,7 @@ Os responsáveis já recebem aviso pelo app; a tela diz isso.
 ### 6.6 Estoque (`/caixa/estoque`), simples, para a "tia da cantina"
 Lista dos produtos que controlam estoque (os abaixo do mínimo no topo). Por produto: "Chegou mercadoria" (ENTRADA), "Perda" e "Contei e tem…" (AJUSTE pela contagem real, com motivo) → `POST /v1/estoque/movimentos`. Teclado numérico grande.
 
-## 7. Autenticação no web (requer ajuste no backend)
+## 7. Autenticação no web (✅ backend pronto na 4D)
 - Access token **só em memória**. Refresh token em **cookie `HttpOnly; Secure; SameSite=Strict; Path=/v1/auth`** (em dev sem HTTPS, `Secure` fica desligado), para o refresh não ficar acessível a JavaScript (protege contra roubo por XSS).
 - **Backend (✅ pronto, 4D):** quando a requisição de login/refresh/logout vier com o header `X-Cliente: web`, a API grava/lê o refresh no cookie `lanchei_rt` em vez do JSON (o app dos pais usa `X-Cliente: pais` e o cookie `lanchei_rt_pais`, para os dois apps da mesma origem não se deslogarem). O app de loja (fase 2) continua recebendo no JSON.
 - Funciona porque **painel e API são a mesma origem** (a API serve o painel, §2). Em dev, o proxy do Vite dá o mesmo efeito.
@@ -140,6 +140,18 @@ Já especificado em `etapa4-backend.md` §4.5/§4.6: `GET /caixa/catalogo`, `GET
 - **CSP do helmet** ajustada para o painel: `img-src 'self' blob:` (foto via objectURL), `media-src 'self' blob:`, `script-src 'self' 'wasm-unsafe-eval'` (ZXing WASM do leitor de QR), `connect-src 'self'`;
 - fonte **Plus Jakarta Sans servida pelo próprio app** (`@fontsource/plus-jakarta-sans`), sem Google Fonts: nenhuma chamada a terceiros a partir do tablet (melhor para a LGPD e para a CSP);
 - o CORS deixa de ser necessário para o painel (mesma origem); manter liberado só `http://localhost:5173` em dev.
+
+## 11.1 Implementação (✅ pronta) e decisões tomadas
+- **Visual:** segue o canvas "Lanchei — Tela do caixa (tablet)" (5 telas). Login, estoque e a gaveta "Vendas de hoje" não estão no canvas e seguem os mesmos tokens. Também existem as telas `/esqueci-senha`, `/definir-senha` e `/redefinir-senha` (links dos e-mails da equipe).
+- **Versões exatas** no `apps/web/package.json` (`~` deixava o npm pegar patches de poucos dias). O `vite` é fixado no monorepo inteiro por `overrides` na raiz, e o `jsdom` fica na raiz (é do Vitest, que é da raiz).
+- **Leitor de QR:** `BarcodeDetector` nativo quando existe; senão o ponyfill `barcode-detector/ponyfill` com o `.wasm` do ZXing servido pelo **próprio app** (`prepareZXingModule` + `locateFile`; o padrão do pacote baixaria do jsDelivr). O `.wasm` e o JavaScript do ZXing **precisam ser da mesma versão**: com versões diferentes, toda leitura falha (aconteceu com o `barcode-detector` 3.2.4). Há teste que confere (`tests/leitorQr.test.ts`).
+- **Build:** `assetsInlineLimit: 0`. Sem isso, o Vite embutia pedaços da fonte como `data:` e a CSP (`font-src 'self'`) bloqueava.
+- **Máquina de estados:** além do diagrama do §5, existem `FALHA_PIN` (PIN incorreto/bloqueado: volta com o erro para o teclado; nenhum pedido criado) e `ERRO_COBRANCA` (outro erro, ex.: produto desativado agora há pouco: volta ao aluno com aviso). Erro 5xx é tratado como `ERRO_REDE` (não dá para saber se cobrou; a retentativa usa a mesma chave).
+- **PIN:** nunca entra no estado da tela. O "Tentar de novo" de uma compra com PIN reabre o teclado (a chave é a mesma, o PIN é digitado de novo). O erro de PIN vale só para o aluno a que se refere (escolher outro aluno libera o teclado).
+- **Sessão:** ao recarregar, `restaurarSessao()` (cookie) + `GET /v1/auth/equipe/eu` (rota nova) devolvem o usuário. Sem sessão → `/login`.
+- **Gancho de teste:** com `localStorage['lanchei:modo-teste'] = '1'`, `window.__lancheiLerQr('LCH1....')` simula a câmera (E2E e demonstração sem câmera).
+- **Dados de demonstração:** `npm run db:demo -w apps/api` cria a "Escola Demonstração" com o cardápio do mockup, logins (`cida@demo.lanchei` etc., senha `demo-lanchei-123`) e a aluna Ana Beatriz (saldo R$ 50, limite diário R$ 30, PIN 4821); imprime o conteúdo do QR.
+- **Conferência visual e de ponta a ponta:** feita num Edge sem tela, com a API servindo o build e a CSP ligada, inclusive a leitura pela câmera (vídeo falso com o QR da carteirinha de demonstração).
 
 ## 12. Testes desta etapa
 - **Unitários (Vitest):** `maquinaVenda` (todas as transições, regra da Idempotency-Key, limpeza de foto/PIN), filtro `LCH1.` + anti-repetição do leitor, single-flight do refresh.

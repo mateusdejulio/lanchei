@@ -6,7 +6,7 @@
 |---|---|---|
 | Integridade do banco (26 regras) | `database/testar_schema.sh` | O próprio MySQL recusa: saldo negativo, UPDATE/DELETE no ledger, crédito/débito duplicado, idempotency key repetida, 2 carteirinhas vivas, dados cruzados entre escolas, estoque negativo, venda manual sem observação, push sem chaves… |
 | Permissões mínimas | `database/testar_grants.sh` | O usuário `lanchei_api` **não consegue** alterar/apagar ledger e auditoria, apagar alunos/pedidos, nem DROP/ALTER; toda tabela tem GRANT |
-| API com usuário restrito | (procedimento abaixo, §1.1) | Os **576 testes passam** logados como `lanchei_api`: a API funciona sem nenhum privilégio a mais |
+| API com usuário restrito | (procedimento abaixo, §1.1) | Os **577 testes passam** logados como `lanchei_api`: a API funciona sem nenhum privilégio a mais |
 | Regras puras | `apps/api/tests/dominio.test.ts` (18) | Ordem das validações, limites, dias (bitmask), fuso da escola, aplicador de schema, assinatura do webhook |
 | Compra | `tests/compra.test.ts` (30) | Aprovação, cada motivo de recusa, idempotência, **concorrência** (saldo, estoque, clique duplo, estorno), PIN, estorno |
 | Depósito/Pix | `tests/deposito.test.ts` (13) | Crédito só com `approved`, **uma vez** mesmo com 10 webhooks em paralelo, valor divergente, devolução, assinatura, reprocessamento |
@@ -20,6 +20,7 @@
 | Cantina (dinheiro) | `tests/cantina-dinheiro.test.ts` (22) | Venda manual (só saldo/estoque, idempotência com 8 envios simultâneos, limite do dia em que ocorreu), ajuste (nunca negativo; 6 idênticos simultâneos = 1), encerramento com reembolso (5 simultâneos = 1; disputa com 10 compras fecha zerado), estorno de outro dia só pelo admin |
 | Cantina | `tests/cantina.test.ts` (24) | Catálogo (snapshot de preço, `ZERAR_ESTOQUE_ANTES`), estoque (contagem disputando com vendas), pedidos, relatórios e CSV, resumo com alertas, auditoria por perfil, **OAuth do MP** (tokens criptografados, state inválido/vencido/adulterado, conta em uso, MP fora do ar) |
 | Matriz de permissões | `tests/permissoes.test.ts` (321) | Cada rota de `/v1/admin`, `/v1/estoque`, `/v1/caixa`, `/v1/me` (+ plataforma) × 5 papéis: permitido passa, proibido = 403 |
+| Caixa (front) | `apps/web/tests/*` (37) | Máquina de estados da venda (todas as transições, regra da Idempotency-Key, PIN fora do estado), filtro do leitor (`LCH1.` + 3 s), versões do ZXing iguais, botão Cobrar, tela de recusa por motivo (sem saldo), selos dos produtos, teclado do PIN |
 | Pacote compartilhado | `packages/shared/tests/*` (15) | Refresh **single-flight** (5 requisições com token vencido = 1 refresh; prova de mutação), sessão encerrada, erros de rede/tempo/cancelamento, formato de erro; dinheiro sem float; datas no fuso da escola; contagem regressiva |
 | HTTP/Auth | `tests/http.test.ts` (17) | Login, refresh rotativo com **detecção de reuso**, permissões por papel (incl. ESCOLA ≠ caixa), formato de erro, caixa sem saldo na resposta |
 
@@ -53,7 +54,7 @@ cd apps/api && PULAR_SETUP_SCHEMA=1 DB_USER=lanchei_api DB_PASSWORD=restrito-123
 - [ ] Imprimir uma folha de carteirinhas e ler todas no caixa.
 
 ## 3. Integração contínua (gratuita)
-`.github/workflows/ci.yml`: a cada push, o GitHub Actions sobe um MySQL 8, roda o typecheck de todos os workspaces, os testes do `packages/shared`, `testar_schema.sh`, `testar_grants.sh` e os testes da API. Fica dentro da cota gratuita do GitHub para um projeto deste tamanho. Quando o `apps/web` e o `apps/pais` existirem, acrescentar os testes deles no mesmo workflow.
+`.github/workflows/ci.yml`: a cada push, o GitHub Actions sobe um MySQL 8, roda o typecheck de todos os workspaces, os testes do `packages/shared`, `testar_schema.sh`, `testar_grants.sh`, os testes da API, os testes do `apps/web` e o build de produção. Fica dentro da cota gratuita do GitHub para um projeto deste tamanho. Quando o `apps/web` e o `apps/pais` existirem, acrescentar os testes deles no mesmo workflow.
 
 ## 4. Rodar tudo na sua máquina
 Requisitos: **Node 22+**, **MySQL 8** (instalador oficial, Docker ou o próprio serviço gratuito do Aiven) e Git.

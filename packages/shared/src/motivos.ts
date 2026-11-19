@@ -35,17 +35,17 @@ export const TEXTOS_RECUSA: Record<MotivoRecusa, TextoRecusa> = {
   },
   LIMITE_DIARIO: {
     titulo: 'Limite diário atingido',
-    orientacaoCaixa: 'Nada foi cobrado. O limite definido pelos responsáveis já foi usado.',
+    orientacaoCaixa: 'Nada foi cobrado. Diga ao aluno que o limite de hoje definido pelos responsáveis já foi usado.',
     textoPais: 'Limite diário atingido. Nada foi cobrado.',
   },
   LIMITE_SEMANAL: {
     titulo: 'Limite semanal atingido',
-    orientacaoCaixa: 'Nada foi cobrado. O limite definido pelos responsáveis já foi usado.',
+    orientacaoCaixa: 'Nada foi cobrado. Diga ao aluno que o limite desta semana definido pelos responsáveis já foi usado.',
     textoPais: 'Limite semanal atingido. Nada foi cobrado.',
   },
   LIMITE_MENSAL: {
     titulo: 'Limite mensal atingido',
-    orientacaoCaixa: 'Nada foi cobrado. O limite definido pelos responsáveis já foi usado.',
+    orientacaoCaixa: 'Nada foi cobrado. Diga ao aluno que o limite deste mês definido pelos responsáveis já foi usado.',
     textoPais: 'Limite mensal atingido. Nada foi cobrado.',
   },
   SALDO_INSUFICIENTE: {
@@ -56,4 +56,4 @@ export const TEXTOS_RECUSA: Record<MotivoRecusa, TextoRecusa> = {
 };
 
 /** Frase do rodapé da tela de recusa do caixa (os pais são avisados pelo app). */
-export const AVISO_PAIS_NOTIFICADOS = 'Os responsáveis já receberam um aviso pelo app.';
+export const AVISO_PAIS_NOTIFICADOS = 'Os responsáveis foram avisados no app.';
