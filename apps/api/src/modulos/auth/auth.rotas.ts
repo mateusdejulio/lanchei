@@ -10,9 +10,11 @@ import { cadastrarResponsavel, MENSAGEM_CADASTRO, reenviarVerificacao, verificar
 import { esqueciSenha, redefinirSenha } from './senha.servico.js';
 import { limiteCadastro, limiteEnvioEmail, limiteLogin, limiteRefresh, limiteTokenEmail } from '../../middlewares/limites.js';
 import { zEmail, zNome, zSenhaNova, zTokenEmail } from '../../validacao.js';
+import { erros } from '../../erros.js';
+import { limparCookie, refreshDaRequisicao, responderComTokens } from './cookie.js';
 
 const credenciais = z.object({ email: z.email().max(254), senha: z.string().min(1).max(200) });
-const refresh = z.object({ refreshToken: z.string().min(20).max(200) });
+const zRefresh = z.string().min(20).max(200);
 
 const cadastro = z.object({
   nome: zNome,
@@ -34,12 +36,12 @@ const cliente = (req: { ip?: string | undefined; get(h: string): string | undefi
 
 rotasAuth.post('/equipe/login', limiteLogin, async (req, res) => {
   const { email, senha } = credenciais.parse(req.body);
-  res.json(await loginEquipe(email, senha, cliente(req)));
+  responderComTokens(req, res, await loginEquipe(email, senha, cliente(req)));
 });
 
 rotasAuth.post('/responsavel/login', limiteLogin, async (req, res) => {
   const { email, senha } = credenciais.parse(req.body);
-  res.json(await loginResponsavel(email, senha, cliente(req)));
+  responderComTokens(req, res, await loginResponsavel(email, senha, cliente(req)));
 });
 
 // Sempre 201 com a mesma mensagem, mesmo se o e-mail já tiver conta (ver cadastro.servico.ts).
@@ -71,13 +73,21 @@ rotasAuth.post('/senha/redefinir', limiteTokenEmail, async (req, res) => {
   res.status(204).end();
 });
 
+// Modo cookie (header X-Cliente): o refresh vem e volta no cookie HttpOnly. Ver cookie.ts.
 rotasAuth.post('/refresh', limiteRefresh, async (req, res) => {
-  const { refreshToken } = refresh.parse(req.body);
-  res.json(await rotacionarRefresh(refreshToken, cliente(req)));
+  const lido = zRefresh.safeParse(refreshDaRequisicao(req));
+  if (!lido.success) throw erros.naoAutenticado('Sessão inválida. Faça login novamente.');
+  try {
+    responderComTokens(req, res, await rotacionarRefresh(lido.data, cliente(req)));
+  } catch (e) {
+    limparCookie(req, res); // refresh inválido: o cookie não serve mais
+    throw e;
+  }
 });
 
 rotasAuth.post('/logout', async (req, res) => {
-  const { refreshToken } = refresh.parse(req.body);
-  await revogarSessao(refreshToken);
+  const lido = zRefresh.safeParse(refreshDaRequisicao(req));
+  if (lido.success) await revogarSessao(lido.data);
+  limparCookie(req, res);
   res.status(204).end();
 });

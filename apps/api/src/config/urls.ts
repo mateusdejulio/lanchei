@@ -13,6 +13,9 @@ export const urlAppPais = semBarraFinal(
   env.URL_APP_PAIS ?? (env.URL_PUBLICA_API ? `${semBarraFinal(env.URL_PUBLICA_API)}/app` : 'http://localhost:5174/app'),
 );
 
+/** Termo de uso e privacidade vigente (o vínculo grava a versão aceita). */
+export const termoAtual = () => ({ versao: env.TERMO_VERSAO, url: env.TERMO_URL ?? `${urlAppPais}/termos` });
+
 /** Monta "base/caminho?chave=valor" com os valores codificados. */
 export function link(base: string, caminho: string, params: Record<string, string> = {}): string {
   const consulta = new URLSearchParams(params).toString();

@@ -19,7 +19,7 @@
 - **Android (Chrome):** funciona no navegador e no app instalado.
 - **iPhone/iPad:** **só funciona com o app instalado na Tela de Início** (iOS 16.4 ou mais novo). Por isso o app mostra um guia de instalação no iPhone (§6.1).
 - O pedido de permissão aparece **num momento que faz sentido**: depois do primeiro vínculo, com a explicação "Quer ser avisado de cada compra e quando o saldo ficar baixo?" + botão. Nunca ao abrir o app (o iOS exige um toque do usuário).
-- O service worker recebe o push e mostra a notificação; tocar nela abre a tela certa (`dados.pedidoId` → detalhe da compra; `depositoId` → extrato).
+- O service worker recebe o push e mostra a notificação; tocar nela abre a tela certa. O payload (JSON) é `{ titulo, corpo, url, notificacaoId }`, e a API já manda a `url`: `/app/filhos/:alunoId/compras/:pedidoId` (compra/estorno/recusa), `/app/filhos/:alunoId/extrato` (depósito), `/app/filhos/:alunoId` ou `/app/notificacoes`. **As rotas do app precisam existir com esses caminhos.**
 - Sem push (recusado ou não suportado): a caixa de entrada do app funciona do mesmo jeito; o push é só o "toque" no celular.
 
 ### Mudanças no backend

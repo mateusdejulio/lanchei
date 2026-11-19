@@ -84,7 +84,7 @@ async function contexto(escolaId: number, alunoId: number) {
 }
 
 /** Itens (nome + quantidade) dos pedidos da página, para a descrição da compra. */
-async function itensDosPedidos(pedidoIds: number[]) {
+export async function itensDosPedidos(pedidoIds: number[]) {
   const mapa = new Map<number, { nome: string; quantidade: number }[]>();
   if (pedidoIds.length === 0) return mapa;
   const itens = await db('pedido_itens_lanchei')
@@ -102,13 +102,30 @@ async function itensDosPedidos(pedidoIds: number[]) {
 // (data, origem, id): ordem total e estável, mesmo com duas linhas no mesmo milissegundo.
 const zCursor = z.tuple([z.string(), z.enum(['T', 'R']), z.number().int()]);
 
-export async function extratoDoAluno(
-  escolaId: number,
-  alunoId: number,
-  f: FiltrosExtrato & { limite: number; cursor?: string | undefined },
-  ator: AtorUsuario,
-) {
+export type FiltrosPagina = FiltrosExtrato & { limite: number; cursor?: string | undefined };
+
+/** Painel (Cantina e Diretoria): a página do extrato + auditoria na abertura. */
+export async function extratoDoAluno(escolaId: number, alunoId: number, f: FiltrosPagina, ator: AtorUsuario) {
   const { contaId, timezone } = await contexto(escolaId, alunoId);
+  if (!f.cursor) {
+    // Só a abertura do histórico é auditada; a rolagem (páginas com cursor) não repete.
+    await auditarUsuario(db, ator, {
+      escolaId,
+      acao: 'HISTORICO_VISUALIZAR',
+      entidade: 'alunos',
+      entidadeId: alunoId,
+      alunoId,
+      depois: { de: f.de ?? null, ate: f.ate ?? null, tipo: f.tipo ?? null },
+    });
+  }
+  return paginaDoExtrato(contaId, timezone, f);
+}
+
+/**
+ * Uma página do extrato (ledger + compras recusadas), sem auditoria.
+ * Usada pelo painel (acima) e pelo app dos pais (que vê o extrato do próprio filho).
+ */
+export async function paginaDoExtrato(contaId: number, timezone: string, f: FiltrosPagina) {
   const q = consultaUnida(contaId, f, timezone);
 
   const cursor = decodificarCursor(f.cursor, zCursor);
@@ -122,16 +139,6 @@ export async function extratoDoAluno(
         .orWhere((w2) => w2.where('x.criado_em', d).andWhere('x.origem', '<', origem))
         .orWhere((w3) => w3.where('x.criado_em', d).andWhere('x.origem', origem).andWhere('x.id', '<', id)),
     );
-  } else {
-    // Só a abertura do histórico é auditada; a rolagem (páginas com cursor) não repete.
-    await auditarUsuario(db, ator, {
-      escolaId,
-      acao: 'HISTORICO_VISUALIZAR',
-      entidade: 'alunos',
-      entidadeId: alunoId,
-      alunoId,
-      depois: { de: f.de ?? null, ate: f.ate ?? null, tipo: f.tipo ?? null },
-    });
   }
   q.orderBy([
     { column: 'x.criado_em', order: 'desc' },

@@ -1,6 +1,6 @@
-// Rotas implementadas aqui: identificar, pedidos (compra), estorno.
-// A IMPLEMENTAR (ver docs/etapa4-backend.md): catálogo, busca de aluno,
-// foto, pedidos de hoje.
+// /v1/caixa (OPERADOR e ADMIN): catálogo, identificar (QR), busca de aluno
+// para a compra sem carteirinha, foto, compra, vendas de hoje e estorno do dia.
+// Nenhuma resposta daqui traz o saldo do aluno (decisão de produto).
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../infra/db.js';
@@ -10,6 +10,10 @@ import { limiteCaixa } from '../../middlewares/limites.js';
 import { realizarCompra } from './compra.servico.js';
 import { estornarPedido } from './estorno.servico.js';
 import { identificarPorQr } from './identificacao.js';
+import { buscarAlunosNoCaixa, catalogoDoCaixa, pedidosDeHoje } from './consultas.servico.js';
+import { lerFotoAuditada } from '../admin/fotos.servico.js';
+import { responderFoto } from '../../infra/fotos.js';
+import { zId } from '../../validacao.js';
 
 const esquemaIdentificacao = z.discriminatedUnion('tipo', [
   z.object({ tipo: z.literal('CARTEIRINHA'), qrConteudo: z.string().min(1).max(100) }),
@@ -31,6 +35,29 @@ const esquemaEstorno = z.object({
 
 export const rotasCaixa = Router();
 rotasCaixa.use(autenticar, exigirPapel('ADMIN', 'OPERADOR'), limiteCaixa);
+
+rotasCaixa.get('/catalogo', async (req, res) => {
+  res.json(await catalogoDoCaixa(usuarioDaEscola(req).escolaId));
+});
+
+rotasCaixa.get('/alunos/busca', async (req, res) => {
+  const { q, turmaId } = z
+    .object({ q: z.string().trim().min(3, 'Digite pelo menos 3 letras.').max(60), turmaId: zId.optional() })
+    .parse(req.query);
+  res.json(await buscarAlunosNoCaixa(usuarioDaEscola(req).escolaId, q, turmaId));
+});
+
+// Foto para a atendente confirmar que é o aluno certo. Cada visualização é auditada.
+rotasCaixa.get('/alunos/:id/foto', async (req, res) => {
+  const u = usuarioDaEscola(req);
+  const foto = await lerFotoAuditada(u.escolaId, zId.parse(req.params.id), { tipo: 'USUARIO', id: u.id }, { ip: req.ip, userAgent: req.get('user-agent') });
+  responderFoto(res, foto);
+});
+
+rotasCaixa.get('/pedidos/hoje', async (req, res) => {
+  const u = usuarioDaEscola(req);
+  res.json(await pedidosDeHoje(u.escolaId, u.id));
+});
 
 rotasCaixa.post('/identificar', async (req, res) => {
   const { escolaId } = usuarioDaEscola(req);

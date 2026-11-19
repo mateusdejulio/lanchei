@@ -69,6 +69,33 @@ export const limiteTokenEmail = rateLimit({
   skip: desligadoEmTeste,
 });
 
+/**
+ * Vínculo por código (app dos pais): 5 ERROS por hora por responsável
+ * (etapa3 §2.7). Acertos não contam. Este fica ligado também nos testes,
+ * porque o próprio limite é critério de aceitação.
+ */
+export const limiteVinculo = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 5,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `vinculo:${req.auth?.id ?? ip(req)}`,
+  message: resposta,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+});
+
+/** Ações que pedem a senha do responsável (trocar senha, PIN): 5 erros a cada 15 min. */
+export const limiteSenhaResponsavel = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 5,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `senha-resp:${req.auth?.id ?? ip(req)}`,
+  message: resposta,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: desligadoEmTeste,
+});
+
 /** Caixa: protege contra força bruta de PIN/QR. Por usuário logado. */
 export const limiteCaixa = rateLimit({
   windowMs: 60_000,

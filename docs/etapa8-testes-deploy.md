@@ -6,16 +6,20 @@
 |---|---|---|
 | Integridade do banco (26 regras) | `database/testar_schema.sh` | O próprio MySQL recusa: saldo negativo, UPDATE/DELETE no ledger, crédito/débito duplicado, idempotency key repetida, 2 carteirinhas vivas, dados cruzados entre escolas, estoque negativo, venda manual sem observação, push sem chaves… |
 | Permissões mínimas | `database/testar_grants.sh` | O usuário `lanchei_api` **não consegue** alterar/apagar ledger e auditoria, apagar alunos/pedidos, nem DROP/ALTER; toda tabela tem GRANT |
-| API com usuário restrito | (procedimento abaixo, §1.1) | Os **455 testes passam** logados como `lanchei_api`: a API funciona sem nenhum privilégio a mais |
+| API com usuário restrito | (procedimento abaixo, §1.1) | Os **576 testes passam** logados como `lanchei_api`: a API funciona sem nenhum privilégio a mais |
 | Regras puras | `apps/api/tests/dominio.test.ts` (18) | Ordem das validações, limites, dias (bitmask), fuso da escola, aplicador de schema, assinatura do webhook |
 | Compra | `tests/compra.test.ts` (30) | Aprovação, cada motivo de recusa, idempotência, **concorrência** (saldo, estoque, clique duplo, estorno), PIN, estorno |
 | Depósito/Pix | `tests/deposito.test.ts` (13) | Crédito só com `approved`, **uma vez** mesmo com 10 webhooks em paralelo, valor divergente, devolução, assinatura, reprocessamento |
 | Conta | `tests/conta.test.ts` (18) | Cadastro **sem enumeração de e-mail**, verificação e redefinição (uso único, expiração, só o link mais recente, clique duplo, revoga sessões, auditoria) |
 | Plataforma | `tests/plataforma.test.ts` (10) | Escolas (slug, fuso, desativar derruba a equipe), primeiro ADMIN/ESCOLA com convite de 72 h, permissões (só SUPERADMIN) |
 | Diretoria | `tests/admin-alunos.test.ts` (18), `tests/admin-vinculos.test.ts` (15), `tests/dominio-admin.test.ts` (9) | Cadastro com convites, pendências, ficha por papel, foto sem EXIF, importação CSV (simular, erro = nada gravado, UTF-8), turmas, convites, desvínculo, carteirinhas (revoga a anterior; 5 emissões simultâneas = 1 viva; lote), histórico + CSV com auditoria, equipe por perfil |
+| App dos pais | `tests/responsavel.test.ts` (25) | Vínculo (consentimento, e-mail verificado, termo vigente, e-mail diferente conta tentativa, 5 erros = 429), `garantirVinculo` (filho de outro = 404 em todas as rotas), extrato com recusas, regras e bloqueios (auditoria, aviso só aos outros, valem na hora no caixa), PIN, carteirinha, desvínculo (REVOGACAO), notificações, aparelhos (transferência), LGPD |
+| Depósito Pix e jobs do MP | `tests/deposito-app.test.ts` (14) | Pix na conta da cantina, idempotência (6 simultâneos = 1), mín./máx., MP fora do ar → CANCELADO + 502, aluno encerrado; jobs: pago sem webhook → credita, não pago → cancela, MP fora do ar → não cancela, job + webhook juntos = crédito uma vez, reprocessar webhook |
+| Jobs | `tests/jobs.test.ts` (10) | Push (vários aparelhos, 410 desativa, sem aparelho, notificação velha), renovação do token do MP (refresh novo, falha, reconexão no meio), reconciliação com e-mail, limpeza |
+| Caixa e web | `tests/caixa-web.test.ts` (12) | Catálogo, busca, vendas de hoje, refresh em cookie (HttpOnly, rotação, reuso, logout), fronts em `/` e `/app` (SPA, cache), CSP, rotas públicas |
 | Cantina (dinheiro) | `tests/cantina-dinheiro.test.ts` (22) | Venda manual (só saldo/estoque, idempotência com 8 envios simultâneos, limite do dia em que ocorreu), ajuste (nunca negativo; 6 idênticos simultâneos = 1), encerramento com reembolso (5 simultâneos = 1; disputa com 10 compras fecha zerado), estorno de outro dia só pelo admin |
 | Cantina | `tests/cantina.test.ts` (24) | Catálogo (snapshot de preço, `ZERAR_ESTOQUE_ANTES`), estoque (contagem disputando com vendas), pedidos, relatórios e CSV, resumo com alertas, auditoria por perfil, **OAuth do MP** (tokens criptografados, state inválido/vencido/adulterado, conta em uso, MP fora do ar) |
-| Matriz de permissões | `tests/permissoes.test.ts` (262) | Cada rota de `/v1/admin` e `/v1/estoque` (+ caixa e plataforma) × 5 papéis: permitido passa, proibido = 403 |
+| Matriz de permissões | `tests/permissoes.test.ts` (321) | Cada rota de `/v1/admin`, `/v1/estoque`, `/v1/caixa`, `/v1/me` (+ plataforma) × 5 papéis: permitido passa, proibido = 403 |
 | HTTP/Auth | `tests/http.test.ts` (17) | Login, refresh rotativo com **detecção de reuso**, permissões por papel (incl. ESCOLA ≠ caixa), formato de erro, caixa sem saldo na resposta |
 
 Prova de que os testes pegam bugs de verdade: removendo o `FOR UPDATE` da conta, o teste "20 compras simultâneas com saldo para 5" falha (aprova as 20).
@@ -111,7 +115,8 @@ Arquitetura: **1 Web Service gratuito no Render** (API + `apps/web` em `/` + `ap
 | `URL_PUBLICA_API` | `https://<seu-servico>.onrender.com` (liga o keep-alive) |
 | `MP_WEBHOOK_SECRET`, `MP_CLIENT_ID`, `MP_CLIENT_SECRET` | do painel de desenvolvedores do Mercado Pago (§5.3) |
 | `MP_REDIRECT_URI` | opcional: vazio usa `URL_PUBLICA_API + /v1/mercadopago/oauth/callback` (tem que ser igual à URL cadastrada no MP) |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | gerados (§4); subject = `mailto:` seu |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | gerados (§4), **diferentes** dos de dev; subject = `mailto:` seu |
+| `TERMO_VERSAO`, `TERMO_URL` | versão do termo publicado e o link dele (§6) |
 | `SMTP_*`, `EMAIL_REMETENTE` | §5.4 |
 
 5. Fatos do plano gratuito do Render que afetam o Lanchei:

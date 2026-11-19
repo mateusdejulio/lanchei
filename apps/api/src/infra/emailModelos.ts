@@ -156,6 +156,22 @@ export const modelos = {
       rodape: 'Aviso automático do Lanchei para a administração da cantina.',
     }),
 
+  // Pedido de um titular (LGPD) vindo do app. A escola é a controladora: ela responde.
+  solicitacaoLgpd: (d: { escola: string; nome: string; email: string; tipo: 'CORRECAO' | 'EXCLUSAO' | 'OUTRO'; mensagem: string }) => {
+    const tipo = { CORRECAO: 'correção de dados', EXCLUSAO: 'exclusão de dados', OUTRO: 'outro assunto' }[d.tipo];
+    return montar({
+      assunto: `[Lanchei] Solicitação LGPD: ${tipo}`,
+      titulo: 'Um responsável fez uma solicitação sobre dados pessoais',
+      paragrafos: [
+        `Escola: ${d.escola}. Pedido de ${tipo}.`,
+        `Responsável: ${d.nome} (${d.email}).`,
+        `Mensagem: ${d.mensagem}`,
+        'A escola é a controladora dos dados (LGPD): responda à pessoa pelo e-mail dela. A lei prevê resposta em até 15 dias. Se precisar de ajuda técnica (exclusão, exportação), fale com o suporte do Lanchei.',
+      ],
+      rodape: 'Aviso automático do Lanchei para a diretoria/secretaria.',
+    });
+  },
+
   // Usado pelo job de reconciliação (etapa 4D). Sem dados pessoais: só quantidades.
   alertaReconciliacao: (d: { contasDivergentes: number; estoqueDivergente: number }) =>
     montar({

@@ -38,8 +38,8 @@ API REST em Node + Express + TypeScript, hospedada no Render. Banco MySQL no Aiv
 | 401 | Sem token, token expirado ou inválido | `NAO_AUTENTICADO`, `TOKEN_EXPIRADO` |
 | 403 | Logado, mas o papel não permite | `SEM_PERMISSAO` |
 | 404 | Não existe ou não é seu | `NAO_ENCONTRADO`, `CARTEIRINHA_INVALIDA` |
-| 409 | Conflito de estado | `ESTOQUE_INSUFICIENTE`, `EMAIL_JA_CADASTRADO`, `SLUG_JA_EXISTE`, `MATRICULA_JA_EXISTE`, `TURMA_JA_EXISTE`, `RESPONSAVEL_JA_VINCULADO`, `CONVITE_JA_USADO`, `NOME_JA_EXISTE`, `AJUSTE_DUPLICADO`, `JA_ENCERRADO`, `DEPOSITO_PENDENTE`, `MP_NAO_CONFIGURADO`, `MP_CONTA_EM_USO`, `IDEMPOTENCY_KEY_REUTILIZADA`, `JA_ESTORNADO`, `MP_NAO_CONECTADO` |
-| 422 | Regra de negócio recusou | `COMPRA_RECUSADA` (+ `detalhes.motivo`), `CODIGO_INVALIDO`, `TOKEN_INVALIDO` (link de e-mail inválido/vencido/usado), `ALUNO_ENCERRADO`, `TURMA_INATIVA`, `TURMA_COM_ALUNOS`, `IMAGEM_INVALIDA`, `ARQUIVO_NAO_UTF8`, `IMPORTACAO_COM_ERROS`, `DEPOSITO_MIN_MAIOR_QUE_MAX`, `SALDO_INSUFICIENTE`, `ZERAR_ESTOQUE_ANTES`, `SEM_DIFERENCA`, `MOTIVO_OBRIGATORIO`, `DATA_NO_FUTURO`, `DATA_MUITO_ANTIGA`, `PERIODO_INVALIDO`, `PERIODO_GRANDE_DEMAIS`, `MP_STATE_INVALIDO`, `PIN_INCORRETO`, `VALOR_FORA_DO_LIMITE`, `SALDO_PENDENTE` |
+| 409 | Conflito de estado | `ESTOQUE_INSUFICIENTE`, `EMAIL_JA_CADASTRADO`, `SLUG_JA_EXISTE`, `MATRICULA_JA_EXISTE`, `TURMA_JA_EXISTE`, `RESPONSAVEL_JA_VINCULADO`, `CONVITE_JA_USADO`, `NOME_JA_EXISTE`, `AJUSTE_DUPLICADO`, `JA_VINCULADO`, `DEPOSITO_EM_PROCESSAMENTO`, `JA_ENCERRADO`, `DEPOSITO_PENDENTE`, `MP_NAO_CONFIGURADO`, `MP_CONTA_EM_USO`, `IDEMPOTENCY_KEY_REUTILIZADA`, `JA_ESTORNADO`, `MP_NAO_CONECTADO` |
+| 422 | Regra de negócio recusou | `COMPRA_RECUSADA` (+ `detalhes.motivo`), `CODIGO_INVALIDO`, `TOKEN_INVALIDO` (link de e-mail inválido/vencido/usado), `ALUNO_ENCERRADO`, `TURMA_INATIVA`, `TURMA_COM_ALUNOS`, `IMAGEM_INVALIDA`, `ARQUIVO_NAO_UTF8`, `IMPORTACAO_COM_ERROS`, `DEPOSITO_MIN_MAIOR_QUE_MAX`, `SALDO_INSUFICIENTE`, `ZERAR_ESTOQUE_ANTES`, `SEM_DIFERENCA`, `MOTIVO_OBRIGATORIO`, `DATA_NO_FUTURO`, `DATA_MUITO_ANTIGA`, `PERIODO_INVALIDO`, `PERIODO_GRANDE_DEMAIS`, `MP_STATE_INVALIDO`, `EMAIL_NAO_VERIFICADO`, `TERMO_DESATUALIZADO`, `PIN_FRACO`, `PIN_NECESSARIO`, `SENHA_INCORRETA`, `ALUNO_ENCERRADO`, `SEM_ESCOLA`, `PIN_INCORRETO`, `VALOR_FORA_DO_LIMITE`, `SALDO_PENDENTE` |
 | 423 | Bloqueado temporariamente | `PIN_BLOQUEADO`, `CONTA_TEMPORARIAMENTE_BLOQUEADA` |
 | 429 | Muitas tentativas | `MUITAS_TENTATIVAS` |
 
@@ -48,7 +48,7 @@ API REST em Node + Express + TypeScript, hospedada no Render. Banco MySQL no Aiv
 - **Access token:** JWT assinado (HS256), validade de **15 min**. Payload:
   `{ sub, tipo: "USUARIO" | "RESPONSAVEL", papel?: "SUPERADMIN" | "ADMIN" | "ESCOLA" | "OPERADOR", escolaId? }`.
 - **Refresh token:** string aleatória opaca, validade de **30 dias**, guardada como hash em `sessoes_lanchei`. É **rotacionado** a cada uso: o antigo é revogado e um novo é emitido. Se um refresh token já revogado for usado de novo, a API revoga **todas** as sessões daquele usuário, porque é sinal de roubo.
-- **Onde guardar:** web (caixa/painel) e PWA dos pais guardam o access token em memória e o refresh em cookie `HttpOnly; Secure; SameSite=Strict` (mesma origem; ver `etapa5-caixa.md` §7). Um app de loja (fase 2) recebe os dois no JSON e guarda no armazenamento seguro do aparelho.
+- **Onde guardar:** web (caixa/painel) e PWA dos pais guardam o access token em memória e o refresh em cookie `HttpOnly; Secure; SameSite=Strict; Path=/v1/auth` (mesma origem; ver `etapa5-caixa.md` §7). Para isso, login, refresh, logout e `POST /me/senha` recebem o header **`X-Cliente: web`** (cookie `lanchei_rt`) ou **`X-Cliente: pais`** (cookie `lanchei_rt_pais`); nesse modo o `refreshToken` não vem no JSON e o `/auth/refresh` não precisa de corpo. Um app de loja (fase 2) recebe os dois no JSON e guarda no armazenamento seguro do aparelho.
 - Senhas com **argon2id**. Política mínima: 8 caracteres.
 
 ### Perfis e prefixos de rota
@@ -118,7 +118,7 @@ Rate limit: login com **5 tentativas por 15 min** por e-mail + IP; esqueci-senha
 | PATCH | `/admin/escola` | `{ nome?, timezone?, depositoMinCentavos?, depositoMaxCentavos? }` | |
 | GET | `/admin/mercadopago/status` | | `{ conectado, configurado, mpUserId?, conectadoEm?, tokenExpiraEm?, expirando? }` (`configurado: false` = a plataforma ainda não tem `MP_CLIENT_ID`) |
 | POST | `/admin/mercadopago/conectar` | | `{ url }`: URL de autorização do MP com `state` assinado. O admin abre, faz login na conta da cantina e autoriza |
-| GET | `/mercadopago/oauth/callback?code&state` | P (valida `state`) | Troca o `code` pelos tokens, criptografa, salva e **redireciona (303)** para `/painel/cantina/configuracoes?mp=conectado` ou `?mp=erro&motivo=CODIGO` (`MP_STATE_INVALIDO`, `AUTORIZACAO_NEGADA`, `MP_CONTA_EM_USO`, `GATEWAY_INDISPONIVEL`...) |
+| GET | `/mercadopago/oauth/callback?code&state` | P (valida `state`) | Troca o `code` pelos tokens, criptografa, salva e **redireciona (303)** para `/painel/cantina/configuracoes?mp=conectado` ou `?mp=erro&motivo=CODIGO` (`MP_STATE_INVALIDO`, `EMAIL_NAO_VERIFICADO`, `TERMO_DESATUALIZADO`, `PIN_FRACO`, `PIN_NECESSARIO`, `SENHA_INCORRETA`, `ALUNO_ENCERRADO`, `SEM_ESCOLA`, `AUTORIZACAO_NEGADA`, `MP_CONTA_EM_USO`, `GATEWAY_INDISPONIVEL`...) |
 
 **Equipe**
 
@@ -326,7 +326,7 @@ Todas as rotas `/me/filhos/:alunoId/*` verificam se existe um vínculo **ativo**
 |---|---|---|---|
 | GET | `/me/filhos` | | `[{ id, nome, escola: { id, nome }, turma, saldoCentavos, carteirinha: { status }, temFoto }]` |
 | GET | `/me/filhos/:alunoId` | | Detalhe + regras + bloqueios + outros responsáveis vinculados (só nome) |
-| GET | `/me/filhos/:alunoId/foto` | | Bytes da foto |
+| GET | `/me/filhos/:alunoId/foto` | | Bytes da foto (auditada `FOTO_VISUALIZAR`) |
 | GET | `/me/filhos/:alunoId/extrato` | `?de=&ate=&limite=&cursor=` | Linhas do ledger: `{ id, tipo, valorCentavos, saldoAposCentavos, descricao, criadoEm, pedidoId?, depositoId? }` |
 | GET | `/me/filhos/:alunoId/pedidos/:pedidoId` | | Itens da compra (inclui recusados, com motivo) |
 | GET | `/me/filhos/:alunoId/regras` | | Ver abaixo |
@@ -357,7 +357,7 @@ A API converte `diasPermitidos` para o bitmask do banco. O app nunca vê o núme
 | Método | Rota | Body | Descrição |
 |---|---|---|---|
 | POST | `/me/filhos/:alunoId/depositos` | `{ valorCentavos }` + `Idempotency-Key` | Ver abaixo |
-| GET | `/me/depositos/:id` | | Status (o app consulta a cada poucos segundos enquanto mostra o QR) |
+| GET | `/me/depositos/:id` | | `{ deposito: { id, alunoId, status, valorCentavos, pixCopiaCola (só enquanto aberto), expiraEm, aprovadoEm, criadoEm } }`. O app consulta a cada poucos segundos enquanto mostra o QR |
 | GET | `/me/filhos/:alunoId/depositos` | `?cursor=` | Histórico |
 
 `POST /me/filhos/:alunoId/depositos`, resposta 201:
@@ -381,7 +381,7 @@ A API converte `diasPermitidos` para o bitmask do banco. O app nunca vê o núme
 
 | Método | Rota | Query | Descrição |
 |---|---|---|---|
-| GET | `/me/notificacoes` | `?cursor=&naoLidas=true` | Caixa de entrada |
+| GET | `/me/notificacoes` | `?cursor=&naoLidas=true&limite=` | `{ itens: [{ id, alunoId, tipo, titulo, corpo, dados, lida, criadoEm }], proximoCursor, naoLidas }` |
 | POST | `/me/notificacoes/:id/lida` | | |
 | POST | `/me/notificacoes/lidas` | | Marca todas |
 

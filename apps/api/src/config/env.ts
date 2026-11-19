@@ -36,6 +36,18 @@ const esquema = z.object({
   // Precisa ser IGUAL à URL cadastrada no painel do MP. Vazio = URL_PUBLICA_API + /v1/mercadopago/oauth/callback.
   MP_REDIRECT_URI: opcional(z.url()),
 
+  // Web Push (VAPID). Gere UMA vez com: npx web-push generate-vapid-keys
+  // Sem as chaves, o push fica desligado (a caixa de entrada do app funciona igual).
+  VAPID_PUBLIC_KEY: opcional(z.string()),
+  VAPID_PRIVATE_KEY: opcional(z.string()),
+  // Contato do dono da plataforma, exigido pelo protocolo: "mailto:voce@exemplo.com".
+  VAPID_SUBJECT: opcional(z.string().regex(/^(mailto:|https:\/\/)/, 'use mailto:... ou https://...')),
+
+  // Termo de uso e privacidade aceito no vínculo (LGPD). Mudou o texto? Mude a versão.
+  TERMO_VERSAO: z.string().min(1).max(20).default('2026-11-v1'),
+  // Vazio = página de termos do próprio app dos pais (/app/termos).
+  TERMO_URL: opcional(z.url()),
+
   // Origens liberadas no CORS (painel web), separadas por vírgula.
   CORS_ORIGENS: z.string().default('http://localhost:5173'),
 

@@ -86,6 +86,19 @@ const MATRIZ: Rota[] = [
   { metodo: 'get', caminho: '/v1/estoque/movimentos', pode: ['ADMIN', 'OPERADOR'], descricao: 'histórico de estoque' },
   // Caixa (já existia): ADMIN e OPERADOR, nunca ESCOLA
   { metodo: 'post', caminho: '/v1/caixa/identificar', pode: ['ADMIN', 'OPERADOR'], descricao: 'caixa: identificar' },
+  { metodo: 'get', caminho: '/v1/caixa/catalogo', pode: ['ADMIN', 'OPERADOR'], descricao: 'caixa: catálogo' },
+  { metodo: 'get', caminho: '/v1/caixa/alunos/busca', pode: ['ADMIN', 'OPERADOR'], descricao: 'caixa: busca sem carteirinha' },
+  { metodo: 'get', caminho: '/v1/caixa/alunos/:aluno/foto', pode: ['ADMIN', 'OPERADOR'], descricao: 'caixa: foto' },
+  { metodo: 'get', caminho: '/v1/caixa/pedidos/hoje', pode: ['ADMIN', 'OPERADOR'], descricao: 'caixa: vendas de hoje' },
+  // App dos pais: só RESPONSAVEL (a equipe e o superadmin, nunca)
+  { metodo: 'get', caminho: '/v1/me', pode: ['RESPONSAVEL'], descricao: 'app: perfil' },
+  { metodo: 'get', caminho: '/v1/me/filhos', pode: ['RESPONSAVEL'], descricao: 'app: filhos' },
+  { metodo: 'get', caminho: '/v1/me/filhos/:aluno', pode: ['RESPONSAVEL'], descricao: 'app: detalhe do filho' },
+  { metodo: 'get', caminho: '/v1/me/filhos/:aluno/extrato', pode: ['RESPONSAVEL'], descricao: 'app: extrato' },
+  { metodo: 'put', caminho: '/v1/me/filhos/:aluno/regras', pode: ['RESPONSAVEL'], descricao: 'app: regras' },
+  { metodo: 'post', caminho: '/v1/me/filhos/:aluno/depositos', pode: ['RESPONSAVEL'], descricao: 'app: depósito Pix' },
+  { metodo: 'get', caminho: '/v1/me/notificacoes', pode: ['RESPONSAVEL'], descricao: 'app: notificações' },
+  { metodo: 'get', caminho: '/v1/me/dados', pode: ['RESPONSAVEL'], descricao: 'app: exportar dados (LGPD)' },
   // Plataforma: só SUPERADMIN
   { metodo: 'get', caminho: '/v1/plataforma/escolas', pode: ['SUPERADMIN'], descricao: 'plataforma' },
 ];

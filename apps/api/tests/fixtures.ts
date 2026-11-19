@@ -205,6 +205,51 @@ export async function logarEquipe(app: import('express').Express, email: string)
   };
 }
 
+/** Login de RESPONSÁVEL; devolve o mesmo tipo de cliente HTTP de logarEquipe. */
+export async function logarResponsavel(app: import('express').Express, email: string, senha = SENHA) {
+  const { default: request } = await import('supertest');
+  const r = await request(app).post('/v1/auth/responsavel/login').send({ email, senha });
+  if (r.status !== 200) throw new Error(`login do responsável falhou (${r.status})`);
+  const token = r.body.accessToken as string;
+  const auth = { Authorization: `Bearer ${token}` };
+  return {
+    token,
+    id: r.body.responsavel.id as number,
+    get: (rota: string) => request(app).get(rota).set(auth),
+    post: (rota: string, body: object = {}) => request(app).post(rota).set(auth).send(body),
+    patch: (rota: string, body: object = {}) => request(app).patch(rota).set(auth).send(body),
+    put: (rota: string, body: object = {}) => request(app).put(rota).set(auth).send(body),
+  };
+}
+
+/** Responsável SEM vínculo (e-mail verificado por padrão). Senha = SENHA. */
+export async function criarResponsavel(op: { verificado?: boolean } = {}) {
+  const email = emailUnico('resp');
+  const [id] = await db('responsaveis_lanchei').insert({
+    nome: 'Carla Mendes',
+    email,
+    senha_hash: await senhaHash(),
+    email_verificado_em: op.verificado === false ? null : new Date(),
+  });
+  return { id: id!, email };
+}
+
+/** Convite com código CONHECIDO (o teste precisa digitá-lo). */
+export async function criarConvite(escola: Escola, alunoId: number, email: string, extra: Record<string, unknown> = {}) {
+  const { gerarCodigoAtivacao, hashCodigo } = await import('../src/dominio/codigoAtivacao.js');
+  const codigo = gerarCodigoAtivacao();
+  const [id] = await db('convites_responsavel_lanchei').insert({
+    escola_id: escola.escolaId,
+    aluno_id: alunoId,
+    email,
+    codigo_hash: hashCodigo(codigo),
+    expira_em: new Date(Date.now() + 7 * 86_400_000),
+    criado_por_usuario_id: escola.diretoriaId,
+    ...extra,
+  });
+  return { id: id!, codigo };
+}
+
 /** Extrai o token de um link de e-mail (…?token=XYZ). */
 export function tokenDoEmail(texto: string): string {
   const m = /[?&]token=([A-Za-z0-9_-]+)/.exec(texto);

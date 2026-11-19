@@ -103,7 +103,7 @@ Lista dos produtos que controlam estoque (os abaixo do mínimo no topo). Por pro
 
 ## 7. Autenticação no web (requer ajuste no backend)
 - Access token **só em memória**. Refresh token em **cookie `HttpOnly; Secure; SameSite=Strict; Path=/v1/auth`** (em dev sem HTTPS, `Secure` fica desligado), para o refresh não ficar acessível a JavaScript (protege contra roubo por XSS).
-- **Backend:** quando a requisição de login/refresh/logout vier com o header `X-Cliente: web`, a API grava/lê o refresh no cookie `lanchei_rt` em vez do JSON. O app mobile continua recebendo no JSON (sem mudança).
+- **Backend (✅ pronto, 4D):** quando a requisição de login/refresh/logout vier com o header `X-Cliente: web`, a API grava/lê o refresh no cookie `lanchei_rt` em vez do JSON (o app dos pais usa `X-Cliente: pais` e o cookie `lanchei_rt_pais`, para os dois apps da mesma origem não se deslogarem). O app de loja (fase 2) continua recebendo no JSON.
 - Funciona porque **painel e API são a mesma origem** (a API serve o painel, §2). Em dev, o proxy do Vite dá o mesmo efeito.
 - **Refresh "single-flight"** no cliente HTTP: se várias requisições recebem 401 `TOKEN_EXPIRADO` ao mesmo tempo, **um** refresh roda e as outras esperam na fila. Isso é obrigatório, porque a API derruba todas as sessões ao detectar reuso de refresh.
 - Ao abrir o app (reload): tenta o refresh pelo cookie; se falhar, vai para o login.
