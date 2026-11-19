@@ -1,0 +1,19 @@
+{
+  "name": "@lanchei/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Código compartilhado pelos fronts do Lanchei: cliente HTTP, tipos da API, dinheiro e datas",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "~5.0.5"
+  }
+}

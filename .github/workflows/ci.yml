@@ -47,8 +47,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Typecheck
-        run: npm run api:typecheck
+      - name: Typecheck (todos os workspaces)
+        run: npm run typecheck
+
+      - name: Testes do pacote compartilhado (cliente HTTP, dinheiro, datas)
+        run: npm run shared:test
 
       - name: Integridade do schema (26 regras)
         working-directory: database

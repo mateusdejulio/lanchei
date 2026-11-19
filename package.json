@@ -3,13 +3,18 @@
   "private": true,
   "description": "Lanchei: pagamento sem dinheiro para cantinas escolares",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
     "api:dev": "npm run dev -w apps/api",
     "api:test": "npm test -w apps/api",
-    "api:typecheck": "npm run typecheck -w apps/api"
+    "api:typecheck": "npm run typecheck -w apps/api",
+    "shared:test": "npm test -w packages/shared"
   },
   "engines": {
     "node": ">=22"

@@ -20,6 +20,7 @@
 | Cantina (dinheiro) | `tests/cantina-dinheiro.test.ts` (22) | Venda manual (só saldo/estoque, idempotência com 8 envios simultâneos, limite do dia em que ocorreu), ajuste (nunca negativo; 6 idênticos simultâneos = 1), encerramento com reembolso (5 simultâneos = 1; disputa com 10 compras fecha zerado), estorno de outro dia só pelo admin |
 | Cantina | `tests/cantina.test.ts` (24) | Catálogo (snapshot de preço, `ZERAR_ESTOQUE_ANTES`), estoque (contagem disputando com vendas), pedidos, relatórios e CSV, resumo com alertas, auditoria por perfil, **OAuth do MP** (tokens criptografados, state inválido/vencido/adulterado, conta em uso, MP fora do ar) |
 | Matriz de permissões | `tests/permissoes.test.ts` (321) | Cada rota de `/v1/admin`, `/v1/estoque`, `/v1/caixa`, `/v1/me` (+ plataforma) × 5 papéis: permitido passa, proibido = 403 |
+| Pacote compartilhado | `packages/shared/tests/*` (15) | Refresh **single-flight** (5 requisições com token vencido = 1 refresh; prova de mutação), sessão encerrada, erros de rede/tempo/cancelamento, formato de erro; dinheiro sem float; datas no fuso da escola; contagem regressiva |
 | HTTP/Auth | `tests/http.test.ts` (17) | Login, refresh rotativo com **detecção de reuso**, permissões por papel (incl. ESCOLA ≠ caixa), formato de erro, caixa sem saldo na resposta |
 
 Prova de que os testes pegam bugs de verdade: removendo o `FOR UPDATE` da conta, o teste "20 compras simultâneas com saldo para 5" falha (aprova as 20).
@@ -52,7 +53,7 @@ cd apps/api && PULAR_SETUP_SCHEMA=1 DB_USER=lanchei_api DB_PASSWORD=restrito-123
 - [ ] Imprimir uma folha de carteirinhas e ler todas no caixa.
 
 ## 3. Integração contínua (gratuita)
-`.github/workflows/ci.yml`: a cada push, o GitHub Actions sobe um MySQL 8, roda typecheck, `testar_schema.sh`, `testar_grants.sh` e os testes da API. Fica dentro da cota gratuita do GitHub para um projeto deste tamanho. Quando o `apps/web` e o `apps/pais` existirem, acrescentar os testes deles no mesmo workflow.
+`.github/workflows/ci.yml`: a cada push, o GitHub Actions sobe um MySQL 8, roda o typecheck de todos os workspaces, os testes do `packages/shared`, `testar_schema.sh`, `testar_grants.sh` e os testes da API. Fica dentro da cota gratuita do GitHub para um projeto deste tamanho. Quando o `apps/web` e o `apps/pais` existirem, acrescentar os testes deles no mesmo workflow.
 
 ## 4. Rodar tudo na sua máquina
 Requisitos: **Node 22+**, **MySQL 8** (instalador oficial, Docker ou o próprio serviço gratuito do Aiven) e Git.
@@ -99,7 +100,7 @@ Arquitetura: **1 Web Service gratuito no Render** (API + `apps/web` em `/` + `ap
 1. Subir o repositório no GitHub (privado).
 2. Render → **New → Web Service** → conectar o repositório → instância **Free**.
 3. Configuração:
-   - **Build command:** `npm ci && npm run build` (o script `build` da raiz compila `packages/shared`, `apps/web`, `apps/pais` e `apps/api`; criar esse script quando os apps existirem).
+   - **Build command:** `npm ci --include=dev && npm run build`. O `--include=dev` é obrigatório: com `NODE_ENV=production`, o `npm ci` pula as devDependencies, e sem o TypeScript e o Vite o build falha. O script `build` da raiz roda o `build` de cada workspace, na ordem `packages/*` → `apps/*` (o `packages/shared` é distribuído como código-fonte TypeScript e compilado pelo Vite de cada app).
    - **Start command:** `node apps/api/dist/server.js`
    - **Health check path:** `/health`
    - **Node:** 22 (`engines` do package.json).

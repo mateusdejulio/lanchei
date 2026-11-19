@@ -25,6 +25,10 @@ Se um pedido contradizer esses documentos, **pergunte antes** de implementar. Se
 ## Comandos
 ```bash
 npm install                    # na raiz
+npm run dev                    # sobe API (+ painel e app dos pais, quando existirem) juntos
+npm run typecheck              # todos os workspaces
+npm run build                  # build de produção (shared → apps)
+npm run shared:test            # testes do packages/shared (sem banco)
 npm run api:test               # testes da API (MySQL real; banco *_test é recriado)
 npm run api:typecheck
 npm run api:dev                # API em http://localhost:3333
@@ -32,7 +36,7 @@ npm run db:schema -w apps/api  # aplica database/schema.sql (--sem-triggers só 
 MYSQL="mysql -u root -p" database/testar_schema.sh   # 26 regras de integridade
 MYSQL="mysql -u root -p" database/testar_grants.sh   # permissões mínimas do usuário da API
 ```
-Antes de dizer que algo está pronto: `api:typecheck` e `api:test` precisam passar (e os dois scripts do banco, se mexeu no schema). O CI (`.github/workflows/ci.yml`) roda tudo isso a cada push.
+Antes de dizer que algo está pronto: `typecheck`, `shared:test` e `api:test` precisam passar (e os dois scripts do banco, se mexeu no schema). O CI (`.github/workflows/ci.yml`) roda tudo isso a cada push.
 
 ## Regras invioláveis (resumo; detalhes em docs/etapa4-backend.md §2)
 - Dinheiro **sempre em centavos inteiros**. Nunca float.

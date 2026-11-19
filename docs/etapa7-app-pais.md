@@ -11,7 +11,7 @@
   - os pais baixam um app pequeno, sem nada do caixa ou do painel (menos código e menos superfície de ataque);
   - manifesto e service worker próprios (nome "Lanchei", ícone e `start_url` dos pais).
 - Servido **pela própria API** em **`/app/`** (Vite `base: '/app/'`), na mesma origem do resto: o cookie seguro do refresh funciona igual ao painel (`etapa5-caixa.md` §7) e continua custo zero.
-- Código compartilhado em **`packages/shared`**: cliente HTTP (refresh single-flight), schemas Zod/tipos das respostas, formatação de dinheiro e datas, tokens visuais. O `apps/web` e o `apps/pais` (e a fase 2) usam o mesmo pacote.
+- Código compartilhado em **`packages/shared`** (✅ pronto): cliente HTTP (`criarClienteApi`, refresh single-flight, header `X-Cliente`, erros `ErroApi`/`ErroRede`/`ErroSessao`), tipos das respostas (TypeScript, sem validação em tempo de execução, para o app ficar leve), dinheiro (`formatarCentavos`, `textoParaCentavos`, `digitosParaCentavos`), datas no fuso da escola (só `Intl`, sem biblioteca) e os textos dos motivos de recusa (`TEXTOS_RECUSA`). É distribuído como código-fonte TypeScript (`exports: ./src/index.ts`). Os tokens visuais entram junto com o primeiro front (Etapa 5). O `apps/web` e o `apps/pais` (e a fase 2) usam o mesmo pacote.
 - Layout **mobile-first** (referência de 390×844); no computador, a coluna central fica com no máximo 480 px.
 
 ## 3. Push gratuito: Web Push (substitui o Expo Push nesta fase)
